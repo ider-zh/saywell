@@ -1,0 +1,20 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "saywell-preview-ai",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-10-20",
+  "workers_dev": true,
+  "preview_urls": false,
+  "routes": [{ "pattern": "saywell.9992099.xyz", "custom_domain": true, "zone_name": "9992099.xyz" }],
+  "ai": { "binding": "AI" },
+  "observability": { "enabled": false },
+  "vars": {
+    "PREVIEW_ENABLED": "true",
+    "PREVIEW_UNTIL": "",
+    "ALLOWED_ORIGINS": ""
+  },
+  "ratelimits": [
+    { "name": "CLIENT_LIMIT", "namespace_id": "202610201", "simple": { "limit": 10, "period": 60 } },
+    { "name": "SERVICE_LIMIT", "namespace_id": "202610202", "simple": { "limit": 30, "period": 60 } }
+  ]
+}
