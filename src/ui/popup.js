@@ -24,6 +24,7 @@ async function refresh(){state=await send('state');if(origin)hasSiteGrant=await 
 async function toggle(value){try{await send('toggle',{enabled:value});await refresh();status(value?'Suggestions resumed.':'Suggestions paused. Local analytics remain active.');}catch(e){status(e.message,true);}}
 $('#enabled').addEventListener('change',()=>toggle($('#enabled').checked));$('#pause').addEventListener('click',()=>toggle(!state?.settings.enabled));
 $('#settings').addEventListener('click',()=>openPage('settings.html'));$('#dashboard').addEventListener('click',()=>openPage('dashboard.html'));$('#dashboard-brand').addEventListener('click',e=>{e.preventDefault();openPage('dashboard.html');});
+$('#history-popup').addEventListener('click',e=>{e.preventDefault();openPage('history.html');});
 $('#site-mode-popup').addEventListener('change',async()=>{try{await send('set-site-mode',{mode:$('#site-mode-popup').value});await refresh();status('Website mode saved.');}catch(e){status(e.message,true);}});
 $('#target-language-popup').addEventListener('change',async()=>{try{await send('set-target-language',{targetLanguage:$('#target-language-popup').value});await refresh();status('Target language saved.');}catch(e){status(e.message,true);}});
 $('#llm-profile-popup').addEventListener('change',async()=>{try{await send('activate-llm-profile',{profileId:$('#llm-profile-popup').value});await refresh();status('Active configuration saved.');}catch(e){status(e.message,true);}});

@@ -10,6 +10,7 @@ import {validTooltipSize} from './core/tooltip-size.js';
 import {validateSitePreferences,sitePreferencesFor,resolveSiteSettings} from './core/site-preferences.js';
 import {exportConfigBackup,parseConfigBackup,configSummary} from './core/config-backup.js';
 import {SETUP_ORIGINS,enableFreeSetup} from './core/setup.js';
+import {HISTORY_LIMITS,historyLimit,historyResult,mergeHistory,trimHistory} from './core/history.js';
 
 let writeQueue=Promise.resolve();
 const basicProviders=createBasicProviders();
@@ -36,12 +37,12 @@ async function preferencesFor(sender,s){
   return sitePreferencesFor((await chrome.storage.local.get('sitePreferences')).sitePreferences,new URL(sender.url).hostname.toLowerCase());
 }
 async function contentSettings(s,sender){
-  const {uiLanguage,tooltipSizes}=await chrome.storage.local.get(['uiLanguage','tooltipSizes']),preferences=sender?await preferencesFor(sender,s):{};
+  const {uiLanguage,tooltipSizes,historyPreferences,historyGeneration}=await chrome.storage.local.get(['uiLanguage','tooltipSizes','historyPreferences','historyGeneration']),preferences=sender?await preferencesFor(sender,s):{};
   const size=sender && tooltipSizes?.[new URL(sender.url).hostname.toLowerCase()];
   return {...publicSettings(resolveSiteSettings(s,preferences)),sitePreferences:preferences,
     globalDefaults:{mode:s.mode,targetLanguage:s.targetLanguage,basicEngine:s.basicEngine,activeLlmId:s.activeLlmId},
     llmChoices:s.llmProfiles.map(({id,name,provider,model,enabled,consent})=>({id,name,provider,model,enabled,consent})),
-    tooltipSize:validTooltipSize(size)?size:'small',uiLanguage:['en','zh-CN'].includes(uiLanguage)?uiLanguage:'auto'};
+    tooltipSize:validTooltipSize(size)?size:'small',uiLanguage:['en','zh-CN'].includes(uiLanguage)?uiLanguage:'auto',historyLimit:historyLimit(historyPreferences?.limit),historyGeneration:historyGeneration || 0};
 }
 async function withKeys(s) {
   const local=await chrome.storage.local.get('keys'), session=await chrome.storage.session.get('keys');
@@ -102,6 +103,18 @@ async function handle(message,sender) {
   if (!message || typeof message.type !== 'string') throw new Error('Invalid message.');
   const isUI=trusted(sender), s=await settings();
   if (message.type === 'public-settings') return contentSettings(s,sender);
+  if(message.type==='record-history')return serial(async()=>{
+    const latest=await settings();if(!latest.enabled || !await forSite(sender,latest))throw new Error('Website is excluded.');
+    const data=await chrome.storage.local.get(['translationHistory','historyPreferences','historyGeneration']),limit=historyLimit(data.historyPreferences?.limit);
+    if(!limit || message.generation!==(data.historyGeneration || 0))return false;
+    if(typeof message.requestId!=='string' || !/^[a-zA-Z0-9-]{1,64}$/.test(message.requestId) || typeof message.source!=='string' || !message.source.trim() || message.source.length>6000 || !['en','zh'].includes(message.targetLanguage) || !['translate','polish','explain'].includes(message.action) || !['mt','llm'].includes(message.lane))throw new Error('Invalid history entry.');
+    const id=`${sender.tab.id}-${sender.frameId || 0}-${message.requestId}`;
+    const entry={id,createdAt:new Date().toISOString(),hostname:new URL(sender.url).hostname,source:message.source,targetLanguage:message.targetLanguage,action:message.action};
+    const records=mergeHistory(data.translationHistory || [],entry,message.lane,historyResult(message.result),limit);
+    try{await chrome.storage.local.set({translationHistory:records});await chrome.storage.session.remove('historyWriteError');}
+    catch{await chrome.storage.session.set({historyWriteError:true});return false;}
+    return true;
+  });
   if(message.type==='set-site-preferences')return serial(async()=>{
     const latest=await settings();
     if(!await siteAccess(sender,latest))throw new Error('Grant website access first.');
@@ -197,6 +210,19 @@ async function handle(message,sender) {
     });
   }
   if (!isUI) throw new Error('This action is only available from extension pages.');
+  if(message.type==='get-history')return serial(async()=>{
+    const data=await chrome.storage.local.get(['translationHistory','historyPreferences']);
+    return {records:data.translationHistory || [],limit:historyLimit(data.historyPreferences?.limit),writeError:Boolean((await chrome.storage.session.get('historyWriteError')).historyWriteError)};
+  });
+  if(['clear-history','remove-history','set-history-limit'].includes(message.type))return serial(async()=>{
+    const data=await chrome.storage.local.get(['translationHistory','historyPreferences','historyGeneration']);let records=data.translationHistory || [],limit=historyLimit(data.historyPreferences?.limit);
+    if(message.type==='set-history-limit'){
+      if(!HISTORY_LIMITS.includes(message.limit))throw new Error('Invalid history limit.');limit=message.limit;if(limit)records=trimHistory(records,limit);
+    }else if(message.type==='remove-history'){
+      if(typeof message.id!=='string' || message.id.length>120)throw new Error('Invalid history entry.');records=records.filter(row=>row.id!==message.id);
+    }else records=[];
+    await chrome.storage.local.set({translationHistory:records,historyPreferences:{limit},historyGeneration:(data.historyGeneration || 0)+1});await chrome.storage.session.remove('historyWriteError');return true;
+  });
   if(message.type==='setup-status')return setupStatus();
   if(message.type==='complete-setup')return serial(async()=>{
     const current=await setupStatus();
@@ -352,7 +378,7 @@ chrome.permissions.onRemoved.addListener(()=>{ registerSites().then(updateSetupB
 chrome.permissions.onAdded.addListener(()=>{ updateSetupBadge().catch(()=>{}); });
 chrome.storage.onChanged.addListener(async(changes,area)=>{
   if(area==='local' && (changes.settings || changes.setup || changes.uiLanguage))updateSetupBadge().catch(()=>{});
-  if(area!=='local' || (!changes.settings && !changes.uiLanguage && !changes.sitePreferences && !changes.tooltipSizes))return;
+  if(area!=='local' || (!changes.settings && !changes.uiLanguage && !changes.sitePreferences && !changes.tooltipSizes && !changes.historyPreferences && !changes.historyGeneration))return;
   // Every frame fetches its own effective settings, rather than receiving other hosts' preferences.
   for(const tab of await chrome.tabs.query({})) if(tab.id) chrome.tabs.sendMessage(tab.id,{type:'settings-updated'}).catch(()=>{});
 });

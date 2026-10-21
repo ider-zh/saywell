@@ -1,5 +1,15 @@
 // English source messages are stable keys. Provider/user content is never translated here.
 export default {
+  'Translation history · Saywell':'翻译历史 · Saywell','Translation history':'翻译历史','History ↗':'历史 ↗','Only on this device':'仅保存在本机',
+  'Find an earlier translation or polished expression.':'找回之前的翻译和润色表达。','Search source, result or website':'搜索原文、结果或网站','Search translation history':'搜索翻译历史',
+  'Rolling history limit':'滚动保留数量','Off · keep existing history':'关闭记录 · 保留已有历史','Latest 50':'最近 50 条','Latest 100 (default)':'最近 100 条（默认）','Latest 200':'最近 200 条','Latest 500':'最近 500 条','Latest 1,000':'最近 1,000 条',
+  'Export results':'导出当前结果','Clear all history':'清空全部历史','Source text and results are saved locally, separately from analytics. A lower limit removes older records immediately; storage limits can remove them earlier. Turning recording off keeps existing records. Export includes the current search results, with no API keys.':'原文和结果单独保存在本机，不属于输入统计。减少数量会立即删除更早记录；达到空间上限时也会提前滚动清理。关闭记录会保留已有历史。导出包含当前搜索结果，不含服务商凭据。',
+  'Some history could not be saved. Clear local history or free browser storage.':'部分历史保存失败，请清理历史或释放浏览器存储空间。','Saved translations':'已保存的翻译','No matching translations yet.':'暂无匹配的翻译记录',
+  'Completed suggestions appear here. Try another search or start writing on a website.':'完成的翻译和润色建议会显示在这里，可更换搜索词或在网页上开始输入。','Show more':'显示更多',
+  'Source':'原文','Full source and all results':'展开原文与全部结果','Copy result':'复制结果','Result copied.':'结果已复制。','Clipboard is unavailable here.':'此处无法使用剪贴板。',
+  'History entry removed.':'已删除该条历史。','{shown} of {total} records':'匹配 {shown} / 共 {total} 条','History preference saved.':'历史记录偏好已保存。',
+  'History cleared. New translations follow your recording preference.':'历史已清空，后续翻译将按当前记录偏好保存。','History cleared.':'历史已清空。','History exported.':'历史已导出。',
+  'Local history saves the latest 100 source texts and results by default. Change the limit, turn recording off or clear it on the history page.':'本地历史默认保存最近 100 条原文和结果，可在历史页面调整数量、关闭记录或清空。',
   'This configuration uses the old free AI address. Connect and test will switch it to {endpoint} and request access if needed.':'当前配置使用旧版免费 AI 地址。点击「连接并测试」将切换到 {endpoint}，并按需申请访问权限。',
   'Website permission needed':'需要网页访问授权',
   'You’re ready to write.':'可以开始写作了。',

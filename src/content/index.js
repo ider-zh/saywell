@@ -58,6 +58,8 @@ if (!globalThis.__inputCoach) {
     const editor=active, source=readEditor(editor);if(!source.trim() || source.length>6000)return;
     const action=routeAction(source,mode || settings.mode,settings.llmEnabled,settings.targetLanguage || 'en');if(action.action==='none')return;
     const id=++sequence;
+    // getRandomValues also works on granted HTTP pages, where randomUUID is unavailable.
+    const historyRequestId=Array.from(crypto.getRandomValues(new Uint8Array(16)),byte=>byte.toString(16).padStart(2,'0')).join(''),historyGeneration=settings.historyGeneration || 0,historyEnabled=settings.historyLimit!==0;
     const valid=()=>id===sequence && active===editor && editor.isConnected && !composing.has(editor) && readEditor(editor)===source && settings.enabled && allowed();
     const show=value=>{if(valid())tip.show(editor,{mode:mode || settings.mode,site:currentSite(),...value});};
     // No empty loading card: both lanes start now and publish independently when usable text arrives.
@@ -82,7 +84,10 @@ if (!globalThis.__inputCoach) {
       }
     };
     const run=async(lane,process)=>{
-      try{const result=await process();if(valid() && result)results[lane]={...result,action:lane==='mt'?'translate':action.action,source,changed:result.text!==source.trim(),canApply:canApply(editor)};}
+      try{const result=await process();if(valid() && result){
+        results[lane]={...result,action:lane==='mt'?'translate':action.action,source,changed:result.text!==source.trim(),canApply:canApply(editor)};
+        if(historyEnabled)send({type:'record-history',requestId:historyRequestId,generation:historyGeneration,source,action:action.action,targetLanguage:settings.targetLanguage || 'en',lane,result:{text:result.text,engine:result.engine,explanation:result.explanation}}).catch(()=>{});
+      }}
       catch(e){if(valid())errors[lane]=e.message;}
       finally{done[lane]=true;await publish();}
     };
@@ -155,7 +160,7 @@ if (!globalThis.__inputCoach) {
   window.addEventListener('pagehide',flush);document.addEventListener('visibilitychange',()=>{if(document.hidden)flush();});
   function acceptSettings(next){
     if(JSON.stringify(settings)===JSON.stringify(next))return;
-    if(settings && JSON.stringify({...settings,tooltipSize:undefined})===JSON.stringify({...next,tooltipSize:undefined})){settings=next;tip.setSize(next.tooltipSize);return;}
+    if(settings && JSON.stringify({...settings,tooltipSize:undefined,historyLimit:undefined,historyGeneration:undefined})===JSON.stringify({...next,tooltipSize:undefined,historyLimit:undefined,historyGeneration:undefined})){settings=next;tip.setSize(next.tooltipSize);return;}
     const visible=tip.host.isConnected,sitePanel=tip.isSitePanel || tip.siteOpen,focused=document.activeElement===tip.host;
     invalidate();settings=next;mode=settings.mode;tip.setSize(next.tooltipSize);
     if(!allowed())pending={};

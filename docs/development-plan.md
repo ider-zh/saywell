@@ -1,5 +1,7 @@
 # Milestones and release gates
 
+2026-10-21: Added a miniature remembered-position pin that restores automatic placement on click/keyboard activation. Added a separate local translation-history page: default 100 records, 50/100/200/500/1,000 or disabled recording, merged parallel results, local search, per-row deletion, clear, JSON export and incremental scroll loading. Storage is bounded and generation checks prevent late results from restoring deleted history. Privacy disclosures and both README languages now describe this separate local text collection.
+
 2026-10-20: Added Chinese-first README.md and English README.en.md with language links. GitHub Actions tests and packages every push/PR/manual run, with an extension ZIP retained 14 days and browser evidence retained 7 days. Builds validate the sponsored Worker bundle without deploying it or using a Cloudflare secret. Store publication remains a separate release step.
 
 2026-10-20: Sponsored AI moved to the owner-authorized three-label hostname `saywell.9992099.xyz`. The apex domain is unbound and the legacy workers.dev hostname stays available. New presets use the custom base; saved legacy profiles can reconnect once to switch with renewed permission/consent. Custom-domain HTTPS and actual MV3 synthetic connection passed on the tested network. Geographic reachability still depends on the user's network.

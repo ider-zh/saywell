@@ -27,7 +27,10 @@ test('actual MV3 web adapters connect without keys, translate both directions an
     await ui.locator('#targetLanguage').selectOption('zh');await ui.locator('#basicEngine').selectOption('bing');await ui.locator('#save').click();await expect(ui.getByRole('status')).toHaveText('Preferences saved.');await draft.fill('This is a synthetic web translation.');await expect(tip.locator('.suggestion')).toHaveText('必应译文。');expect(calls.at(-1)).toMatchObject({id:'bing',source:'en',target:'zh-Hans'});expect(calls.filter(c=>c.id==='bing-page')).toHaveLength(1);
     failGoogle=true;await ui.locator('#targetLanguage').selectOption('en');await ui.locator('#basicEngine').selectOption('googleweb');await ui.locator('#save').click();await expect(ui.getByRole('status')).toHaveText('Preferences saved.');await draft.fill('谷歌限流后使用必应。');await expect(tip.locator('.suggestion')).toHaveText('Bing translation.');
     const state=await ui.evaluate(async()=>({data:(await chrome.runtime.sendMessage({type:'state'})).data,local:await chrome.storage.local.get(null),session:await chrome.storage.session.get(null)}));expect(state.data.basicStatus.attempts.map(a=>a.status)).toEqual(['rate','success']);expect(state.data.hasKeys).toEqual({llm:false,libre:false,azure:false,google:false});
-    const stored=JSON.stringify({local:state.local,session:state.session});expect(stored).not.toContain('browser-page-token');expect(stored).not.toContain('谷歌限流后');
+    const stored=JSON.stringify({local:state.local,session:state.session});expect(stored).not.toContain('browser-page-token');
+    const {translationHistory,...nonHistory}=state.local;
+    expect(translationHistory.some(row=>row.source==='谷歌限流后使用必应。')).toBe(true);
+    expect(JSON.stringify({local:nonHistory,session:state.session,data:state.data})).not.toContain('谷歌限流后');
     await ui.locator('#engines').screenshot({path:'test-results/web-engines-en.png',style:'.save-bar,.section-nav{visibility:hidden}'});
   }finally{
     await context?.close();await new Promise(resolve=>server.close(resolve));const absolute=path.resolve(root);if(!absolute.startsWith(path.resolve(os.tmpdir())+path.sep))throw new Error('Unsafe cleanup path');await rm(absolute,{recursive:true,force:true});

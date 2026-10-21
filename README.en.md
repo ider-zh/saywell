@@ -29,8 +29,9 @@ You can also [build from source](#build-from-source) and load the local `dist/` 
 - **Translation and polish:** Auto follows the input language. The target defaults to English and can be switched to Chinese in the popup or Settings. Same-language input uses the LLM for polishing. Translate, Polish and Explain can also be selected on the card.
 - **Parallel results:** MT and the LLM start together. A card appears only when useful text is available. The LLM becomes primary when ready, with MT collapsed underneath. If one lane fails, the other result remains available.
 - **Explicit replacement:** Only **Apply** replaces the draft, with another exact-source check immediately beforehand. Saywell never submits forms or sends messages. Unsupported complex editors offer **Copy**.
-- **Vocabulary:** English results can highlight up to three useful words or phrases. Review explanations and examples, mark words known or save them. Saving a source sentence requires a separate consent checkbox.
+- **Vocabulary:** English results can highlight up to three useful words or phrases. Review explanations and examples, mark words known or save them. Attaching a source sentence to a vocabulary item requires a separate consent checkbox.
 - **Movable card:** Drag its title bar and select Small, Medium or Large. Position and size are remembered per hostname and kept within the viewport after window resizing.
+- **Position pin:** A miniature pin appears after manual movement, indicating a remembered position for that site. Click it to unpin and resume automatic positioning beside the input.
 - **Autosave:** Valid Settings edits save after about 650 ms, followed by a completion toast. Invalid values and failed writes keep the current input and show an error.
 
 The console supports Simplified Chinese and English, following the browser language by default. UI language and translation target are independent.
@@ -71,6 +72,14 @@ Adapters support OpenAI-compatible APIs, OpenAI, DeepSeek, Xiaomi MiMo, SiliconF
 Select a provider, enter a model and required credentials, then click **Connect and test** to request endpoint access, authorize text processing and send a fixed synthetic test. Connecting another profile does not activate it globally. Usage and charges follow the chosen provider.
 
 ## Configuration backup and privacy
+
+### Local translation history
+
+Open **Translation history** from the sidebar or popup. By default it retains the latest **100 source texts and results**, combining MT and AI responses into one entry. Search source/result text or hostnames, remove individual entries, clear all history, or export the current search results as JSON.
+
+Choose a rolling limit of **50, 100, 200, 500 or 1,000**, or turn recording off. Lowering the limit immediately removes older records; disabling recording retains existing entries until separately cleared. Storage limits can cause earlier eviction. More entries load as you scroll. History stays on this device, excludes provider credentials, and is separate from numeric analytics and configuration backups.
+
+### Configuration backup
 
 Settings → Local data & privacy → **Configuration backup** exports and imports JSON. Export first saves valid pending edits. Backups include global preferences, LLM profiles, website defaults, card positions/sizes and UI language, but **exclude API keys, provider text consent and practice data**.
 

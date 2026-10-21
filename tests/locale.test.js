@@ -20,7 +20,7 @@ test('floating blacklist controls use UI language and distinguish inherited wild
 });
 test('all console template messages and accessibility labels have Chinese translations',async()=>{
   const brandOrExample=/^(?:[\d\s/—↗⚙◷▤⌁✧×]+|Saywell|SAYWELL \/ 0\.1|Aa|MyMemory|LibreTranslate|Google Cloud Translation|Microsoft Azure|OpenAI|DeepSeek)$/;
-  for(const page of ['dashboard','settings','vocabulary','popup','welcome']){
+  for(const page of ['dashboard','settings','vocabulary','popup','welcome','history']){
     const {window}=new JSDOM(await readFile(`public/${page}.html`,'utf8'));const doc=window.document;
     for(const node of doc.querySelectorAll('[data-i18n]'))assert.ok(chinese[node.dataset.i18n],`${page}: ${node.dataset.i18n}`);
     for(const attribute of ['aria-label','placeholder','title'])for(const node of doc.querySelectorAll(`[data-i18n-${attribute}]`))assert.ok(chinese[node.getAttribute(`data-i18n-${attribute}`)]);

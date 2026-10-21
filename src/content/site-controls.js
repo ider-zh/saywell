@@ -22,6 +22,7 @@ const chinese={
   'Saving website settings…':'正在保存网站设置…','Website settings saved. Used from the next suggestion.':'网站设置已保存，下次建议开始生效。',
   'Website settings reset to global defaults.':'已恢复此网站的全局默认设置。',
   'Move tooltip':'移动翻译浮窗','Drag to move; arrow keys move, Shift moves faster.':'拖动以移动；方向键微调，Shift 加速。','Reset tooltip position':'重置浮窗位置',
+  'Position remembered for this website · Click to follow input':'已记住此网站位置 · 点击恢复自动定位','Position follows input':'随输入框自动定位',
   'Position could not be saved. It will reset after reloading.':'位置保存失败，刷新后将恢复默认位置。',
   'LLM refinement is still running…':'大模型仍在翻译与润色…','LLM unavailable; showing MT.':'大模型暂不可用，保留机器翻译结果。','MT unavailable; showing LLM.':'机器翻译暂不可用，显示大模型结果。',
   'Machine translation':'机器翻译','Copy MT':'复制机器翻译','Apply MT':'应用机器翻译',

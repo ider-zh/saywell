@@ -1,5 +1,9 @@
 # Compatibility and manual verification
 
+The miniature pin appears only for remembered positions, including positions restored from older installations. Click or Enter clears the current hostname's placement and restores adaptation; cancelled drags do not change state. This reuses existing position storage, with no permission or migration required.
+
+Translation history is stored locally with a default rolling limit of 100 source/result entries and a separate 3 MiB budget. Count options and disabled recording are independent of translation pause, analytics, and config backups. The page supports local search, filtered JSON export, clear/delete, scroll loading and both UI languages. Clearing or changing preferences blocks older in-flight history writes while preserving current translation results. Browser fixtures use actual MV3 messaging and localhost synthetic providers; no live user drafts were used.
+
 Local development uses Node 24; the GitHub Actions build uses Ubuntu 24.04 with Playwright's bundled Chromium and installed system dependencies. CI downloads an unpacked extension ZIP, usable by the existing Chrome/Edge developer-mode installation flow. CI is automated fixture coverage, not proof of authenticated-site or Edge runtime parity. The root README is Simplified Chinese; README.en.md is the English guide. Browser diagnostics contain only synthetic fixture data.
 
 The free AI preset now uses `https://saywell.9992099.xyz/v1`. The root `9992099.xyz` is not a Worker domain. Reload the extension and, for an old workers.dev Saywell profile, click Connect and test once: it updates the exact built-in legacy address, requests the custom host if needed and renews text consent. Other custom endpoints stay unchanged. HTTPS health/readiness/status and a synthetic actual MV3 connection passed; regional reachability is verified only for the tested network. The legacy hostname remains available while older configurations migrate.

@@ -82,17 +82,24 @@ test('tooltip drag survives late LLM replacement, scrolling, reload, resize and 
   await p.evaluate(()=>{window.__coachSetSettings({llmEnabled:true});window.__coachDelays={llm:2000,mt:0};});
   const draft=p.getByRole('textbox',{name:'Draft',exact:true}),tip=p.locator('input-coach-tip');
   await draft.fill('你好，世界。');await expect(tip.getByText('Hello, world.',{exact:true})).toBeVisible();
+  const pin=tip.locator('.position-reset');await expect(pin).toBeHidden();await expect(pin).toHaveAttribute('aria-pressed','false');
   const handle=tip.getByRole('button',{name:'Move tooltip',exact:true}),start=await handle.boundingBox();
   await p.mouse.move(start.x+35,start.y+10);await p.mouse.down();await p.mouse.move(850,90,{steps:8});await p.mouse.up();
   await expect.poll(()=>p.evaluate(()=>JSON.parse(sessionStorage.getItem('coach-tooltip-position') || 'null')?.x || 0)).toBeGreaterThan(0.7);
   const dragged=await tip.boundingBox();expect(dragged.x).toBeGreaterThan(700);
+  await expect(pin).toBeVisible();await expect(pin).toHaveAttribute('aria-pressed','true');await expect(tip).toHaveAttribute('data-position-pinned','');
+  await expect(pin).toHaveAttribute('title','Position remembered for this website · Click to follow input');
+  expect((await pin.locator('svg').boundingBox()).width).toBeLessThan(19);expect((await pin.boundingBox()).width).toBe(20);
+  await tip.screenshot({path:'test-results/tooltip-pinned-en.png'});
   await expect(tip.locator('.suggestion')).toContainText('We should streamline this process.');
   expect(Math.abs((await tip.boundingBox()).x-dragged.x)).toBeLessThan(1);
+  await expect(pin).toBeVisible();
   await p.evaluate(()=>{document.body.style.minHeight='2500px';window.scrollTo(0,500);});
   expect(Math.abs((await tip.boundingBox()).x-dragged.x)).toBeLessThan(1);
   const saved=await p.evaluate(()=>sessionStorage.getItem('coach-tooltip-position'));
   await p.reload();await p.addScriptTag({path:path.resolve('tests/browser/mock-runtime.js')});await p.addScriptTag({path:path.resolve('dist/content.js')});
   await draft.fill('你好，世界。');await expect(tip).toBeVisible();
+  await expect(pin).toHaveAttribute('aria-pressed','true');await expect(pin).toBeVisible();
   expect(Math.abs((await tip.boundingBox()).x-dragged.x)).toBeLessThan(1);
   await p.setViewportSize({width:390,height:300});
   await expect.poll(async()=>{const b=await tip.boundingBox();return b.x>=11.5 && b.y>=11.5 && b.x+b.width<=378.5 && b.y+b.height<=288.5;}).toBe(true);
@@ -100,8 +107,12 @@ test('tooltip drag survives late LLM replacement, scrolling, reload, resize and 
   await p.setViewportSize({width:1280,height:900});
   await expect.poll(async()=>Math.abs((await tip.boundingBox()).x-dragged.x)).toBeLessThan(1);
   await tip.getByRole('button',{name:'Reset tooltip position',exact:true}).click();
+  await expect(pin).toBeHidden();await expect(tip).not.toHaveAttribute('data-position-pinned');
   await expect.poll(()=>p.evaluate(()=>sessionStorage.getItem('coach-tooltip-position'))).toBe('null');
   expect((await tip.boundingBox()).x).toBeLessThan(200);
+  const requestCount=await p.evaluate(()=>window.__coachRequests.length);await p.evaluate(()=>window.scrollTo(0,40));
+  await expect.poll(async()=>Math.abs((await tip.boundingBox()).x-(await draft.boundingBox()).x)).toBeLessThan(1);
+  expect(await p.evaluate(()=>window.__coachRequests.length)).toBe(requestCount);
   await tip.getByRole('button',{name:'Apply ↗',exact:true}).click();await expect(draft).toHaveValue('Hello, world.');await p.close();
 });
 
@@ -110,12 +121,18 @@ test('tooltip supports keyboard movement and cancelled drag without changing the
   await draft.fill('你好，世界。');await expect(tip).toBeVisible();
   const handle=tip.getByRole('button',{name:'Move tooltip',exact:true}),initial=await tip.boundingBox();
   await handle.focus();await handle.press('Shift+ArrowRight');
+  await expect(tip.locator('.position-reset')).toHaveAttribute('aria-pressed','true');
   await expect.poll(async()=>(await tip.boundingBox()).x).toBeCloseTo(initial.x+40,0);
   const saved=await p.evaluate(()=>sessionStorage.getItem('coach-tooltip-position')),before=await tip.boundingBox();
   const grip=await handle.boundingBox();await p.mouse.move(grip.x+20,grip.y+10);await p.mouse.down();await p.mouse.move(900,100,{steps:5});
   await handle.dispatchEvent('pointercancel',{pointerId:1});await p.mouse.up();
   await expect.poll(async()=>Math.abs((await tip.boundingBox()).x-before.x)).toBeLessThan(1);
   expect(await p.evaluate(()=>sessionStorage.getItem('coach-tooltip-position'))).toBe(saved);
+  await p.evaluate(()=>window.__coachSetSettings({uiLanguage:'zh-CN'}));await draft.press('Alt+Shift+E');
+  const pin=tip.getByRole('button',{name:'重置浮窗位置',exact:true});await expect(pin).toHaveAttribute('title','已记住此网站位置 · 点击恢复自动定位');
+  await tip.screenshot({path:'test-results/tooltip-pinned-zh.png'});
+  await pin.focus();await pin.press('Enter');await expect(pin).toBeHidden();await expect(tip).not.toHaveAttribute('data-position-pinned');
+  await expect.poll(()=>p.evaluate(()=>sessionStorage.getItem('coach-tooltip-position'))).toBe('null');
   await expect(draft).toHaveValue('你好，世界。');
   await tip.getByRole('button',{name:'Apply ↗',exact:true}).click();await expect(draft).toHaveValue('Hello, world.');await p.close();
 });
@@ -189,7 +206,7 @@ test('MiMo and SiliconFlow presets localize hints, preserve model IDs, and reset
 });
 
 test('synthetic input translates only after idle, Apply is explicit, paste and AI are separate',async()=>{
-  const p=await pageWithCoach();const draft=p.getByRole('textbox',{name:'Draft',exact:true});await draft.fill('你好，世界。');
+  const p=await pageWithCoach();await p.evaluate(()=>Object.defineProperty(crypto,'randomUUID',{value:undefined}));const draft=p.getByRole('textbox',{name:'Draft',exact:true});await draft.fill('你好，世界。');
   await expect(p.locator('input-coach-tip')).toBeVisible();await expect(p.locator('input-coach-tip').getByText('Hello, world.',{exact:true})).toBeVisible();await expect(draft).toHaveValue('你好，世界。');
   await p.locator('input-coach-tip').getByRole('button',{name:'Apply'}).click();await expect(draft).toHaveValue('Hello, world.');
   await p.waitForFunction(()=>window.__coachMetrics.some(d=>d.ai>0));

@@ -28,6 +28,30 @@ const ui={url:'chrome-extension://unit/settings.html'},site={url:'https://chatgp
 const message=(payload,sender=ui)=>new Promise(resolve=>listener(payload,sender,resolve));
 beforeEach(()=>{stores.local={settings:mergeSettings({llm:{},siteOrigins:['https://chatgpt.com/*']})};stores.session={};permissions.clear();permissions.add('https://chatgpt.com/*');network.length=0;bingPageHook=null;});
 
+test('local history is site-gated, private to extension pages, merges lanes and never enters config/practice exports',async()=>{
+  const entry={type:'record-history',generation:0,requestId:'request-one',source:'你好，世界。',action:'translate',targetLanguage:'en',lane:'mt',result:{text:'Hello, world.',engine:'MT',key:'must-not-store'}};
+  stores.local.settings.analytics=false;assert.equal((await message(entry,site)).ok,true);
+  assert.equal((await message({...entry,lane:'llm',result:{text:'Hello, World.',engine:'AI'}},site)).ok,true);
+  const data=(await message({type:'get-history'})).data;assert.equal(data.limit,100);assert.equal(data.records.length,1);assert.equal(data.records[0].hostname,'chatgpt.com');assert.equal(data.records[0].source,entry.source);assert.deepEqual(Object.keys(data.records[0].results),['mt','llm']);assert.equal(data.records[0].results.mt.key,undefined);
+  assert.equal((await message({type:'get-history'},site)).ok,false);for(const type of ['clear-history','set-history-limit','remove-history'])assert.equal((await message({type,limit:0},site)).ok,false);
+  assert.equal((await message(entry,{url:'https://other.test/',tab:{id:3}})).ok,false);
+  const exported=(await message({type:'export-config'})).data;assert.ok(!JSON.stringify(exported).includes(entry.source));assert.equal((await message({type:'state'})).data.translationHistory,undefined);
+  assert.equal(network.length,0);assert.equal((await message({type:'public-settings'},site)).data.historyLimit,100);
+});
+
+test('history clear/disable generations reject late results; rolling limits trim immediately and retain existing records when switched off',async()=>{
+  const entry={type:'record-history',generation:0,requestId:'before-clear',source:'固定测试',action:'translate',targetLanguage:'en',lane:'mt',result:{text:'Synthetic test',engine:'MT'}};
+  await message(entry,site);await message({type:'clear-history'});assert.equal((await message({...entry,lane:'llm'},site)).data,false);assert.equal(stores.local.translationHistory.length,0);
+  const generation=stores.local.historyGeneration;for(let i=0;i<55;i++)await message({...entry,generation,requestId:'request-'+i},site);
+  await message({type:'set-history-limit',limit:50});assert.equal(stores.local.translationHistory.length,50);assert.ok(stores.local.translationHistory[0].id.endsWith('request-54'));
+  assert.equal((await message({type:'set-history-limit',limit:999999})).ok,false);
+  await message({type:'set-history-limit',limit:0});assert.equal(stores.local.translationHistory.length,50);
+  assert.equal((await message({...entry,requestId:'disabled',generation:stores.local.historyGeneration},site)).data,false);assert.equal(stores.local.translationHistory.length,50);
+  await message({type:'set-history-limit',limit:100});const latest=stores.local.historyGeneration;
+  await message({...entry,requestId:'new-record',generation:latest},site);const id=stores.local.translationHistory[0].id;
+  await message({type:'remove-history',id});assert.equal((await message({...entry,requestId:'new-record',generation:latest,lane:'llm'},site)).data,false);assert.ok(!stores.local.translationHistory.some(row=>row.id===id));
+});
+
 test('fresh install opens first-use authorization; no grant means no consent or network; one completion enables all free features',async()=>{
   stores.local={};opened.length=0;
   await chrome.runtime.onInstalled.listeners[0]({reason:'install'});

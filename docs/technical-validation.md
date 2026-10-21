@@ -1,5 +1,13 @@
 # Phase 0 — technical validation
 
+## Miniature position pin and local history — 2026-10-21
+
+Pin regressions cover hidden automatic state, pointer/keyboard placement, reload restoration, late LLM replacement, resizing, Chinese title text, pointer/Enter reset and no new processing on reset. Screenshots: `tooltip-pinned-en.png` and `tooltip-pinned-zh.png` under test-results.
+
+History tests cover default/selected row counts, UTF-8 byte bounds, lane merging/order, strict result projection, sender-derived hostnames, exclusion/grant checks, trusted-only management, config-export redaction and generation barriers after clear/disable/delete. A real MV3 localhost fixture verifies MT then AI in one row, clear before a late AI reply without resurrection, literal hostile-looking text, search-filtered JSON export without the saved synthetic key, scroll loading, rolling-limit trimming, disabled recording with preserved entries, reload persistence and narrow Chinese layout. All test text and credentials are synthetic. History now intentionally retains source/results locally by default; the analytics collection still contains no drafts, and history is omitted from configuration/practice exports.
+
+Local `npm run check` passed 91 Node tests and 43 Chromium scenarios. After rebuilding the HTTP-compatible request ID change, four targeted browser scenarios passed, including suggestions/Apply with `crypto.randomUUID` unavailable, both pin interactions and actual MV3 history. `npm run package` generated the installable ZIP. History and pin screenshots were visually inspected; narrow layouts remain within the viewport.
+
 ## Repository automation and bilingual entry points — 2026-10-20
 
 The Chinese root README and English README.en.md cover the same installation, consent, provider, backup, privacy and build flows. `.github/workflows/build.yml` runs on pushes, PRs and manual dispatch, installs Node 24 and Chromium/system dependencies, runs the required suite, checks Worker bundling without inference/deployment, packages a version-matched ZIP and uploads installation/test artifacts. CI browser checks prohibit focused tests, retain failure traces and allow a slower runner timeout. This pipeline has no Cloudflare credentials and never calls live provider probes. Local verification with CI mode passed 87 Node tests and 42 Chromium scenarios; Worker dry-run and README local-link checks passed. The initial hosted run is checked in GitHub Actions after pushing.

@@ -11,7 +11,7 @@ header,footer,.row{display:flex;align-items:center;gap:8px}header{justify-conten
 `;
 const siteCSS='.site-policy{border-top:1px solid #e4e7dc;margin-top:12px;padding-top:10px;font-size:11px;color:#61745d}.site-policy .row{justify-content:space-between;flex-wrap:wrap}.site-policy button{font-size:11px;padding:4px 8px}.site-policy .hostname{overflow-wrap:anywhere;color:#7b8575;margin:3px 0 8px}.site-blocked{background:#f7eee5;border-radius:8px;padding:10px;font-size:12px;margin:8px 0;color:#85553a}';
 const compactCSS='.site-policy{margin:6px 0 0;padding-top:6px}.site-policy>summary{font-size:10px;color:#7a8778;line-height:20px}.site-policy>summary::marker{font-size:8px}.site-policy[open]>summary{margin-bottom:8px}.site-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:9px 10px;margin:9px 0}.site-field{display:flex;flex-direction:column;gap:4px;min-width:0;font-size:10px}.site-field select{width:100%;min-width:0;max-width:100%;min-height:29px;font-size:11px;padding:4px;background:#fffef9;text-overflow:ellipsis}.site-buttons{justify-content:flex-start!important;margin-top:10px}.site-help{font-size:10px;line-height:1.5;color:#7a8778}.site-admin{border-top:1px solid #e4e7dc;padding-top:7px;margin-top:9px;justify-content:flex-start!important}.site-admin button{border-color:transparent;color:#7a8778;padding:2px 0}.site-admin button+button{margin-left:auto}.site-policy .hostname{margin:0;line-height:1.5}';
-const dragCSS='.drag-handle{display:flex;align-items:center;gap:5px;flex:1;min-width:0;text-align:left;cursor:grab;touch-action:none;user-select:none;border:0;padding:3px 0}.drag-handle:hover{background:transparent}.grip{font-size:17px;color:#9ca894;letter-spacing:-4px;margin-right:7px}.position-reset{border:0;padding:3px 5px;font-size:17px;color:#7a8778}.position-reset:disabled{visibility:hidden}:host([data-dragging]) .drag-handle{cursor:grabbing}:host([data-dragging]) .card{animation:none}';
+const dragCSS='.drag-handle{display:flex;align-items:center;gap:5px;flex:1;min-width:0;text-align:left;cursor:grab;touch-action:none;user-select:none;border:0;padding:3px 0}.drag-handle:hover{background:transparent}.grip{font-size:17px;color:#9ca894;letter-spacing:-4px;margin-right:7px}.position-reset{display:inline-grid;place-items:center;flex:none;width:20px;height:22px;border:0;border-radius:4px;padding:0;color:#557253;background:#eef3e7}.position-reset svg{width:13px;height:13px;transform:rotate(30deg);pointer-events:none}.position-reset:disabled{visibility:hidden}:host([data-dragging]) .drag-handle{cursor:grabbing}:host([data-dragging]) .card{animation:none}';
 const sizeCSS=`:host{--pad:10px;--text:16px;--body:130px;--space:7px;font-size:12px}:host([data-size=medium]){--pad:13px;--text:18px;--body:190px;--space:10px;font-size:13px}:host([data-size=large]){--pad:16px;--text:20px;--body:260px;--space:12px;font-size:14px}.card{padding:var(--pad)}header{margin-bottom:var(--space);gap:5px}.suggestion{font-size:var(--text);max-height:var(--body);margin:6px 0 var(--space)}.toolbar{margin-bottom:var(--space);flex-wrap:wrap;gap:5px}.engine{letter-spacing:0;overflow-wrap:anywhere}footer{padding-top:var(--space);gap:5px}footer button{padding:4px 8px}.tooltip-size{width:74px;min-width:0;font-size:10px;padding:3px;flex:none}.saywell-mark{width:19px;height:19px}.grip{margin-right:3px}.note:empty{display:none}`;
 const node=(tag,text,attrs={})=>{const e=document.createElement(tag); if(text!==undefined)e.textContent=text;for(const[k,v]of Object.entries(attrs))e.setAttribute(k,v);return e;};
 export class Tooltip {
@@ -35,12 +35,18 @@ export class Tooltip {
   flushQueued(){if(!this.pointerActive && !this.editingSite() && this.queuedView && this.host.isConnected){const[editor,view]=this.queuedView;this.queuedView=null;this.show(editor,view);}}
   close(){this.discardQueued();this.cancelDrag();this.pointerActive=false;this.siteOpen=false;this.siteKey=null;this.host.remove();}
   openSiteSettings(){const panel=this.shadow.querySelector('.site-policy');if(panel){panel.open=true;this.siteOpen=true;this.position(this.editor);}}
-  restorePosition(position){this.placement=validTooltipPosition(position)?{x:position.x,y:position.y}:null;this.position(this.editor);}
+  restorePosition(position){this.placement=validTooltipPosition(position)?{x:position.x,y:position.y}:null;this.updatePositionControl();this.position(this.editor);}
+  updatePositionControl(){
+    const pinned=Boolean(this.placement);this.host.toggleAttribute('data-position-pinned',pinned);
+    if(!this.resetButton)return;
+    this.resetButton.disabled=!pinned;this.resetButton.setAttribute('aria-pressed',String(pinned));
+    this.resetButton.title=siteText(this.site || {},pinned?'Position remembered for this website · Click to follow input':'Position follows input');
+  }
   viewport(){const v=window.visualViewport;return {left:v?.offsetLeft || 0,top:v?.offsetTop || 0,width:v?.width || innerWidth,height:v?.height || innerHeight};}
   bounds(){return tooltipBounds(this.viewport(),this.host.getBoundingClientRect());}
   move(point){const next=clampTooltip(point,this.bounds());this.host.style.left=`${next.left}px`;this.host.style.top=`${next.top}px`;}
   remember(){
-    this.resetButton.disabled=!this.placement;
+    this.updatePositionControl();
     Promise.resolve(this.handlers.onPositionChange?.(this.placement)).catch(()=>this.status(siteText(this.site || {},'Position could not be saved. It will reset after reloading.')));
   }
   cancelDrag(){
@@ -80,15 +86,18 @@ export class Tooltip {
       this.placement=relativeTooltip({left:rect.left+direction[0]*step,top:rect.top+direction[1]*step},this.bounds());
       this.position(this.editor);this.remember();
     });
-    const reset=this.button('↶',()=>{
+    const reset=this.button('',()=>{
       // Keep focus on a stable control before disabling the reset button.
       handle.focus({preventScroll:true});this.placement=null;this.position(this.editor);this.remember();
     });
-    reset.className='position-reset';reset.setAttribute('aria-label',label('Reset tooltip position'));reset.title=label('Reset tooltip position');reset.disabled=!this.placement;this.resetButton=reset;
+    const ns='http://www.w3.org/2000/svg',pin=document.createElementNS(ns,'svg'),shape=document.createElementNS(ns,'path');
+    pin.setAttribute('viewBox','0 0 24 24');pin.setAttribute('aria-hidden','true');pin.setAttribute('focusable','false');
+    for(const[key,value]of Object.entries({d:'M12 17v5M9 3h6l-1 7 4 4v3H6v-3l4-4-1-7Z',fill:'none',stroke:'currentColor','stroke-width':'1.8','stroke-linecap':'round','stroke-linejoin':'round'}))shape.setAttribute(key,value);
+    pin.append(shape);reset.append(pin);reset.className='position-reset';reset.setAttribute('aria-label',label('Reset tooltip position'));this.resetButton=reset;this.updatePositionControl();
     const size=node('select',undefined,{class:'tooltip-size','aria-label':label('Tooltip size'),title:label('Tooltip size · remembered for this website')});
     for(const[value,text]of [['small','Small'],['medium','Medium'],['large','Large']])size.append(node('option',label(text),{value}));size.value=this.size;this.sizeControl=size;
     size.addEventListener('change',()=>{this.setSize(size.value);Promise.resolve(this.handlers.onSizeChange?.(this.size)).catch(()=>this.status(label('Size could not be saved. It will reset after reloading.')));});
-    header.append(handle,size,reset);
+    header.append(handle,reset,size);
   }
   button(label,callback,primary=false){const b=node('button',label,{type:'button'});if(primary)b.className='primary';b.addEventListener('click',callback);return b;}
   siteSettings(site){
