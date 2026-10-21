@@ -6,6 +6,8 @@ test('new installs offer keyless Saywell AI without consent while saved LLM choi
   const fresh=mergeSettings();assert.equal(fresh.llm.provider,'saywell');assert.equal(fresh.llm.endpoint,HOSTED_AI_ENDPOINT);assert.equal(fresh.llm.model,HOSTED_AI_MODEL);assert.equal(fresh.llm.enabled,true);assert.equal(fresh.llm.consent,false);assert.equal(fresh.llm.thinking,false);
   const old=mergeSettings({llm:{provider:'compatible',endpoint:'https://custom.test/v1',model:'saved'}});assert.equal(old.llm.provider,'compatible');assert.equal(old.llm.model,'saved');
   const legacy=mergeSettings({llm:{...fresh.llm,endpoint:LEGACY_HOSTED_AI_ENDPOINT,consent:true}});assert.equal(legacy.llm.endpoint,LEGACY_HOSTED_AI_ENDPOINT);assert.equal(legacy.llm.consent,true);
+  const previous=mergeSettings({llm:{...fresh.llm,model:'@cf/qwen/qwen3.8-27b',consent:true}});assert.equal(previous.llm.model,HOSTED_AI_MODEL);assert.equal(previous.llm.consent,true);assert.equal(previous.llm.endpoint,HOSTED_AI_ENDPOINT);
+  const custom=mergeSettings({llm:{...fresh.llm,endpoint:'https://custom.test/v1',model:'@cf/qwen/qwen3.8-27b'}});assert.equal(custom.llm.model,'@cf/qwen/qwen3.8-27b');
 });
 
 test('Saywell adapter sends only the bounded coach schema without a key, prompt, arbitrary model or vocabulary history',async()=>{

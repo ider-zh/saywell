@@ -5,10 +5,20 @@ Deployed with explicit owner authorization on **2026-10-20** to the owner's exis
 - Service: https://saywell.9992099.xyz
 - Extension API base: `https://saywell.9992099.xyz/v1`
 - Legacy service remains available at `https://saywell-preview-ai.ider001.workers.dev` for previously saved profiles.
-- Model: `@cf/qwen/qwen3.8-27b`, fixed on the server.
+- Model: `@cf/qwen/qwen3-30b-a3b-fp8`, fixed on the server.
 - Health: `/health`; readiness: `/ready`; safe status: `/v1/status`.
 - `POST /v1/coach`: translation/polishing/explanation only, not a general chat/model proxy.
 - Cloudflare credentials stay in the operator's Wrangler login; the deployed Worker uses an AI binding. No credential ships in the extension.
+
+## Model update — 2026-10-21
+
+After the owner's request, six fixed synthetic tasks were tested before replacing the previous Qwen 3.8 27B model. The candidate's final request passed bidirectional translation, grammar correction, unchanged natural English, vocabulary, preserved technical names/numbers and Chinese Explain, without nonempty reasoning. It observed a 1,175.5 ms median versus 2,868 ms for the previous model and 28.57 versus 269.16 total Neurons for those six tasks. This small comparison does not guarantee latency or quality on arbitrary input; see [model evaluation](model-evaluation.md).
+
+Deployed Worker version: `bec6a60c-f280-4fe0-80fb-dbb323101976`. The API hostname, public task schema, Free-plan arrangement, daily quota alerts, rate limits and preview lifetime are preserved. Existing Saywell users use the server-selected model immediately, without a new endpoint grant. Updating the extension also refreshes model metadata on built-in previous-model profiles, while preserving endpoints and consent.
+
+Post-deployment `/health` and `/ready` returned HTTPS 200 with the new model. Four synthetic public-API tasks passed (Chinese-to-English, grammar correction, English-to-Chinese and Explain), observed at 607/813/659/1,035 ms. A disposable real MV3 profile completed **Connect and test** with `hasKey: false` and no HTTP errors. These checks used only fixed synthetic phrases and the existing Free allocation.
+
+Qwen3 30B A3B uses its native chat template with `max_tokens` and an appended `/no_think` by default; explicit thinking uses `/think`. A model-specific prompt requires the JSON fields and Chinese explanations. This is Qwen's tested soft switch. The tested JSON/template-override variants misplaced the answer into Cloudflare's reasoning field during probing; those options are deliberately omitted, and the Worker validates the final JSON without repurposing reasoning. The previous `reasoning_effort`/`max_completion_tokens` protocol is retained only for operator comparison with the old model.
 
 ## Using the extension
 
@@ -18,11 +28,11 @@ New installations enable the included free services with the welcome page's one 
 
 The Worker has one managed Custom Domain: **`saywell.9992099.xyz`**, configured in `cloudflare/wrangler.jsonc`. `workers_dev` stays enabled for compatibility. Cloudflare manages the subdomain's proxied DNS and HTTPS certificate. Only this three-label hostname is attached; the temporary apex binding created before the owner's subdomain clarification was removed, and a public DNS A lookup confirmed no apex answer. Existing DNS records and unrelated Workers were preserved.
 
-Deployment version: `4ff356be-3338-46fc-a171-26979a1902be`. A routing changeset confirmed the final hostname with no conflicts, additions or removals pending. `/health`, `/ready` and `/v1/status` returned HTTPS 200, and a disposable actual MV3 extension completed a fixed synthetic AI connection request with `hasKey: false` and no HTTP errors. This verifies the tested network, not every geographic region.
+Initial custom-domain deployment version: `4ff356be-3338-46fc-a171-26979a1902be`. A routing changeset confirmed the final hostname with no conflicts, additions or removals pending. `/health`, `/ready` and `/v1/status` returned HTTPS 200, and a disposable actual MV3 extension completed a fixed synthetic AI connection request with `hasKey: false` and no HTTP errors. This verifies the tested network, not every geographic region.
 
 Run `node scripts/cloudflare-domain.mjs --plan` to inspect the proposed custom-domain routing changes before deployment. It reads local Wrangler OAuth in memory and prints metadata only. DNS-record listing needs permissions not included in the current OAuth; the Worker routing changeset and public DNS checks avoid requesting a broad DNS API token. Custom Domains setup follows [Cloudflare's routing documentation](https://developers.cloudflare.com/workers/configuration/routing/custom-domains/).
 
-Actual disposable MV3 connection test passed with `hasKey: false`. The deployed API returned `Hello, World.`, `This is a test.`, and `你好，世界。` for the three fixed synthetic smoke inputs. Direct model probing with `chat_template_kwargs.enable_thinking=false` returned nine output tokens and no reasoning content. The Worker also sends `reasoning_effort: low` as the model-supported effort setting, with the explicit template thinking switch controlling the default off request. This is observed behavior for the selected model, not a claim that every reasoning model supports off.
+Historical verification on 2026-10-20 used the previous Qwen 3.8 27B model: the disposable MV3 connection passed with `hasKey: false`, and the deployed API returned `Hello, World.`, `This is a test.`, and `你好，世界。` for fixed smoke inputs. That model accepted `chat_template_kwargs.enable_thinking=false` with `reasoning_effort: low`. The current model uses the separately tested native protocol described above.
 
 ## Free usage and errors
 

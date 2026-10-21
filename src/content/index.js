@@ -9,14 +9,20 @@ if (!globalThis.__inputCoach) {
   globalThis.__inputCoach=true;
   const send=async message=>{const reply=await chrome.runtime.sendMessage(message);if(!reply?.ok)throw new Error(reply?.error || 'Extension reloaded. Refresh this page.');return reply.data;};
   let settings,active=null,sequence=0,timer,applying=false,changingSite=false,refreshingSettings=false,settingsEpoch=0,mode,lastError='',lastErrorAt=0;
-  const snapshots=new WeakMap(),composing=new WeakSet(),compositionStart=new WeakMap();
-  let pending={},flushTimer;
+  let snapshots=new WeakMap();const composing=new WeakSet(),compositionStart=new WeakMap();
+  let pending={},flushTimer,snoozeTimer;
   const access=()=>settings && settings.siteOrigins.some(p=>p===location.origin+'/*' || p===location.protocol+'//*/*');
-  const allowed=()=>access() && siteAllowed(location.hostname,settings);
+  const snoozed=()=>settings?.snoozeUntil>Date.now();
+  const allowed=()=>access() && siteAllowed(location.hostname,settings) && !snoozed();
   const currentSite=()=>siteInfo(location.hostname,settings,chrome.i18n?.getUILanguage?.() || navigator.language);
   function showSitePanel(focus=false){if(active?.isConnected && access()){tip.show(active,{mode:mode || settings.mode,site:currentSite()});if(focus)tip.host.focus({preventScroll:true});}}
   const tip=new Tooltip({
     onPositionChange:position=>send({type:'set-tooltip-position',position}),
+    onSnooze:async(scope,duration)=>{
+      changingSite=true;invalidate(false);
+      try{const next=await send({type:'set-snooze',scope,duration});settingsEpoch++;acceptSettings(next);}
+      finally{changingSite=false;refreshSettings();}
+    },
     onSizeChange:async size=>{await send({type:'set-tooltip-size',size});if(settings)settings={...settings,tooltipSize:size};},
     onDismiss:()=>invalidate(), onMode:value=>{mode=value;invalidate();suggest(true);},
     onPrepare:async()=>{try{const promise=builtin.prepare(translationPair(readEditor(active),settings.targetLanguage || 'en'));tip.status('Preparing the local language model…');await promise;suggest(true);}catch(e){tip.status(e.message);}},
@@ -53,7 +59,7 @@ if (!globalThis.__inputCoach) {
   function focus(editor){if(active!==editor){invalidate();active=editor;mode=settings?.mode;}if(allowed() && !snapshots.has(editor))snapshots.set(editor,readEditor(editor));}
   async function suggest(manual=false){
     clearTimeout(timer);
-    if(changingSite || !settings?.enabled || !access() || !active?.isConnected || composing.has(active))return;
+    if(changingSite || !settings?.enabled || !access() || snoozed() || !active?.isConnected || composing.has(active))return;
     if(!allowed()){if(manual && settings.siteMode==='blacklist')showSitePanel();return;}
     const editor=active, source=readEditor(editor);if(!source.trim() || source.length>6000)return;
     const action=routeAction(source,mode || settings.mode,settings.llmEnabled,settings.targetLanguage || 'en');if(action.action==='none')return;
@@ -152,6 +158,7 @@ if (!globalThis.__inputCoach) {
     if(document.activeElement!==tip.host && editorFor(document.activeElement)!==active){invalidate();active=null;}
   },0),true);
   document.addEventListener('keydown',e=>{
+    if(e.composedPath().includes(tip.host))return;
     if(e.key==='Escape')invalidate();
     if(e.altKey && e.shiftKey && e.code==='KeyE' && !e.isComposing){e.preventDefault();const editor=editorFor(e.composedPath()[0]);if(editor)focus(editor);suggest(true);}
   },true);
@@ -159,12 +166,14 @@ if (!globalThis.__inputCoach) {
   window.visualViewport?.addEventListener('resize',()=>tip.position(active));window.visualViewport?.addEventListener('scroll',()=>tip.position(active));
   window.addEventListener('pagehide',flush);document.addEventListener('visibilitychange',()=>{if(document.hidden)flush();});
   function acceptSettings(next){
+    clearTimeout(snoozeTimer);if(next.snoozeUntil>Date.now())snoozeTimer=setTimeout(()=>refreshSettings(),Math.min(2147483647,next.snoozeUntil-Date.now()+40));
     if(JSON.stringify(settings)===JSON.stringify(next))return;
     if(settings && JSON.stringify({...settings,tooltipSize:undefined,historyLimit:undefined,historyGeneration:undefined})===JSON.stringify({...next,tooltipSize:undefined,historyLimit:undefined,historyGeneration:undefined})){settings=next;tip.setSize(next.tooltipSize);return;}
     const visible=tip.host.isConnected,sitePanel=tip.isSitePanel || tip.siteOpen,focused=document.activeElement===tip.host;
+    if(settings?.snoozeUntil!==next.snoozeUntil){snapshots=new WeakMap();if(active)snapshots.set(active,readEditor(active));pending={};}
     invalidate();settings=next;mode=settings.mode;tip.setSize(next.tooltipSize);
     if(!allowed())pending={};
-    if(visible && settings.enabled && access() && (sitePanel || (settings.siteMode==='blacklist' && !allowed())))showSitePanel(focused);
+    if(visible && settings.enabled && access() && !snoozed() && (sitePanel || (settings.siteMode==='blacklist' && !allowed())))showSitePanel(focused);
   }
   async function refreshSettings(snapshot){
     if(changingSite)return;
@@ -179,5 +188,5 @@ if (!globalThis.__inputCoach) {
     if(message.type==='settings-updated')refreshSettings(message.settings);
   });
   const initialEpoch=++settingsEpoch;
-  Promise.all([send({type:'public-settings'}),send({type:'get-tooltip-position'}).catch(()=>null)]).then(([s,position])=>{tip.restorePosition(position);if(initialEpoch===settingsEpoch){settings=s;mode=s.mode;tip.setSize(s.tooltipSize);}const editor=editorFor(document.activeElement);if(editor)focus(editor);}).catch(()=>{});
+  Promise.all([send({type:'public-settings'}),send({type:'get-tooltip-position'}).catch(()=>null)]).then(([s,position])=>{tip.restorePosition(position);if(initialEpoch===settingsEpoch)acceptSettings(s);const editor=editorFor(document.activeElement);if(editor)focus(editor);}).catch(()=>{});
 }

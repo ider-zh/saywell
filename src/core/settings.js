@@ -1,4 +1,5 @@
 import {LLM_PROVIDERS} from './llm-providers.js';
+import {HOSTED_AI_ENDPOINT,LEGACY_HOSTED_AI_ENDPOINT,HOSTED_AI_MODEL} from './hosted-ai.js';
 export const BASIC_ORDER = ['googleweb','bing','microsoft','mymemory','libre','azure','google'];
 const LEGACY_BASIC_ORDER=['microsoft','mymemory','libre','azure','google'];
 export const BASIC_KEY_IDS = ['libre','azure','google'];
@@ -31,6 +32,7 @@ export function mergeSettings(raw = {}) {
   const active=profiles.find(p=>p.id===activeLlmId);
   // Keep the active projection compatible with previous installations and saved-settings clients.
   if(active && raw.llm)Object.assign(active,llm);
+  for(const p of profiles)if(p.provider==='saywell' && [HOSTED_AI_ENDPOINT,LEGACY_HOSTED_AI_ENDPOINT].includes(p.endpoint) && p.model==='@cf/qwen/qwen3.8-27b')p.model=HOSTED_AI_MODEL;
   return { ...DEFAULTS, ...raw,
     // Append new engines to an existing complete order, without changing old priorities or consent.
     basicOrder:Array.isArray(raw.basicOrder) && raw.basicOrder.length===LEGACY_BASIC_ORDER.length && new Set(raw.basicOrder).size===LEGACY_BASIC_ORDER.length && raw.basicOrder.every(id=>LEGACY_BASIC_ORDER.includes(id))?[...raw.basicOrder,'googleweb','bing']:raw.basicOrder ?? [...BASIC_ORDER],

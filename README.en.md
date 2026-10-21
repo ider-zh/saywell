@@ -32,6 +32,8 @@ You can also [build from source](#build-from-source) and load the local `dist/` 
 - **Vocabulary:** English results can highlight up to three useful words or phrases. Review explanations and examples, mark words known or save them. Attaching a source sentence to a vocabulary item requires a separate consent checkbox.
 - **Movable card:** Drag its title bar and select Small, Medium or Large. Position and size are remembered per hostname and kept within the viewport after window resizing.
 - **Position pin:** A miniature pin appears after manual movement, indicating a remembered position for that site. Click it to unpin and resume automatic positioning beside the input.
+- **Temporary pause:** The small clock in the card offers 1 hour, 4 hours or until the next local midnight, for this website or all websites. Suggestions and input statistics pause until expiry; resume early from the extension popup.
+- **Sentence practice:** Choose **Practice this sentence** under a result and retype directly in the card. Character differences have red highlights; case, spacing and punctuation use a subtle dotted style. The selected sentence stays fixed until practice closes, including when AI finishes later. Practice never edits the website draft, calls a provider or stores the attempt.
 - **Autosave:** Valid Settings edits save after about 650 ms, followed by a completion toast. Invalid values and failed writes keep the current input and show an error.
 
 The console supports Simplified Chinese and English, following the browser language by default. UI language and translation target are independent.
@@ -48,7 +50,7 @@ Password, payment and recognizable secret fields are skipped. Protected browser 
 
 ### Saywell Free AI
 
-Default API base: `https://saywell.9992099.xyz/v1`. The sponsored Cloudflare service uses `@cf/qwen/qwen3.8-27b`, with thinking off by default and no user API key.
+Default API base: `https://saywell.9992099.xyz/v1`. The sponsored Cloudflare service uses `@cf/qwen/qwen3-30b-a3b-fp8`, with non-thinking mode by default and no user API key. Fixed synthetic tasks were tested before switching; see the [model evaluation](docs/model-evaluation.md).
 
 This prerelease service has a shared daily free allocation, resetting at **08:00 Asia/Shanghai**. When exhausted, Saywell shows a notice and pauses repeated AI requests while retaining MT. The service may change or end around release. See [Cloudflare deployment](docs/cloudflare-deployment.md) for operating details.
 

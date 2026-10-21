@@ -1,5 +1,6 @@
-import {systemPrompt,parseLLM} from '../../src/providers/llm.js';
+import {parseLLM} from '../../src/providers/llm.js';
 import {HOSTED_AI_MODEL} from '../../src/core/hosted-ai.js';
+import {modelInput} from './model-input.js';
 
 class ServiceError extends Error{constructor(status,code,retry=0){super(code);this.status=status;this.code=code;this.retry=retry;}}
 const MAX_BODY=32768;
@@ -36,8 +37,7 @@ async function infer(env,input){
   if(quotaUntil>Date.now())throw new ServiceError(429,'daily_quota_exhausted',resetSeconds());
   let result;
   try{
-    const instruction=input.action==='explain'?'Explain the source; keep the text field unchanged.':input.action==='translate'?`Translate the source into ${input.targetLanguage==='zh'?'Simplified Chinese':'English'}. The text field must contain the translation, not the source.`:`Polish the source in ${input.targetLanguage==='zh'?'Simplified Chinese':'English'} only if improvement is needed.`;
-    result=await env.AI.run(HOSTED_AI_MODEL,{messages:[{role:'system',content:systemPrompt(input)+'\nCurrent task: '+instruction},{role:'user',content:JSON.stringify({action:input.action,targetLanguage:input.targetLanguage,text:input.text})}],max_completion_tokens:input.maxTokens,reasoning_effort:'low',chat_template_kwargs:{enable_thinking:input.thinking},response_format:{type:'json_object'},store:false,stream:false});
+    result=await env.AI.run(HOSTED_AI_MODEL,modelInput(input,HOSTED_AI_MODEL));
   }catch(error){
     // Inspect only for classification; never log/return raw provider errors or the draft.
     const code=Number(error?.code || error?.cause?.code),message=String(error?.message || '');

@@ -5,6 +5,10 @@ export function siteInfo(host,settings,browserLanguage='en'){
   return {host,mode:settings.siteMode || 'blacklist',blocked:Boolean(rule),rule,canRemove:rule?.toLowerCase()===host.toLowerCase(),language:resolveLanguage(settings.uiLanguage,browserLanguage),preferences:settings.sitePreferences || {},defaults:settings.globalDefaults || {},profiles:settings.llmChoices || []};
 }
 const chinese={
+  'Pause temporarily':'临时暂停','Pause for':'暂停时长','Pause on':'暂停范围','1 hour':'1 小时','4 hours':'4 小时','Until tomorrow':'到明天零点','This website':'当前网站','All websites':'所有网站','Pause':'暂停',
+  'Practice this sentence':'练习这句话','Practice MT':'练习机器译文','Sentence practice':'句子练习','Try it yourself':'自己输入一遍','Close practice':'关闭练习','Retype the suggested sentence':'重新输入建议句子','Retype the sentence here…':'在这里重新输入这句话…','Start again':'重新练习',
+  'Type at your own pace.':'按自己的节奏输入。','Words match · only case or punctuation differs.':'文字已匹配，仅大小写、空格或标点不同。','Sentence matched.':'句子完全匹配。','{major} character changes · {minor} minor changes':'{major} 处文字差异 · {minor} 处次要差异',
+  'Red: character differences · Dotted: case, spacing or punctuation. Local practice only.':'红色为文字差异，虚线为大小写、空格或标点差异。练习仅在本机进行。',
   'Saywell free AI quota is exhausted for today. It resets at 08:00 Shanghai time. MT is still available.':'Saywell 免费 AI 今日额度已耗尽，北京时间 08:00 重置，仍可使用机器翻译。',
   'Saywell free AI preview has ended. Use MT or connect your own LLM provider.':'Saywell 免费 AI 试用已结束，请使用机器翻译或连接自己的大模型服务。',
   'Saywell free AI is busy. MT is still available; try again shortly.':'Saywell 免费 AI 请求繁忙，仍可使用机器翻译，请稍后再试。',

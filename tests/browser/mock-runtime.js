@@ -13,6 +13,7 @@
   window.__coachRefreshSettings=()=>listeners.forEach(fn=>fn({type:'settings-updated'}));
   window.chrome={runtime:{id:'test-fixture',onMessage:{addListener:fn=>listeners.push(fn)},sendMessage:async message=>{
     if(message.type==='public-settings')return{ok:true,data:effective()};
+    if(message.type==='set-snooze'){window.__coachSnooze=message;window.__coachSetSettings({snoozeUntil:Date.now()+3600000});return{ok:true,data:effective()};}
     if(message.type==='set-site-preferences'){
       window.__coachSiteSaves.push(message.preferences);sessionStorage.setItem('coach-site-preferences',JSON.stringify(message.preferences || {}));
       return{ok:true,data:effective()};

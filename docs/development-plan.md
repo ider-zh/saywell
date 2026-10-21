@@ -1,5 +1,7 @@
 # Milestones and release gates
 
+2026-10-21: Added tooltip temporary pause with site/global scope, 1h/4h/local-midnight deadlines, popup recovery, persistence and automatic expiry. Added transient local sentence practice with autofocus, weighted character differences, IME handling, restart and protection from late result replacement. Tested the cheaper Qwen3 30B A3B FP8 before changing the fixed sponsored default; model protocol/prompt fixes and pre-switch sample results are documented in model-evaluation.md. Free-plan limits and existing endpoint scope remain unchanged.
+
 2026-10-21: Added a miniature remembered-position pin that restores automatic placement on click/keyboard activation. Added a separate local translation-history page: default 100 records, 50/100/200/500/1,000 or disabled recording, merged parallel results, local search, per-row deletion, clear, JSON export and incremental scroll loading. Storage is bounded and generation checks prevent late results from restoring deleted history. Privacy disclosures and both README languages now describe this separate local text collection.
 
 2026-10-20: Added Chinese-first README.md and English README.en.md with language links. GitHub Actions tests and packages every push/PR/manual run, with an extension ZIP retained 14 days and browser evidence retained 7 days. Builds validate the sponsored Worker bundle without deploying it or using a Cloudflare secret. Store publication remains a separate release step.

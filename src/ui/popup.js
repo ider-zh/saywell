@@ -3,11 +3,14 @@ import {dayKey} from '../core/analytics.js';
 import {siteAllowed,blockedRule} from '../core/language.js';
 import {llmProviderName} from '../core/llm-providers.js';
 import {mountSetup} from './setup.js';
-let state,tab,origin,hasSiteGrant=false;
+let state,tab,origin,hasSiteGrant=false,snooze,snoozeTimer;
 await initLocale();
 const setupHolder=document.createElement('div');$('.popup-header').after(setupHolder);mountSetup(setupHolder,{onComplete:refresh});
 function render(){
   if(!state)return;const counts=state.analytics?.[dayKey()] || {};for(const k of ['english','typed','ai'])text('#'+k,fmt(counts[k]));
+  const all=snooze?.allUntil>Date.now(),site=snooze?.siteUntil>Date.now();$('#snooze-status').classList.toggle('hidden',!all && !site);
+  $('#resume-snooze-all').classList.toggle('hidden',!all);$('#resume-snooze-site').classList.toggle('hidden',!site);
+  if(all || site)text('#snooze-until',t('Temporarily paused until {time}',{time:new Date(snooze.until).toLocaleString(locale(),{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}));
   $('#target-language-popup').value=state.settings.targetLanguage;
   $('#llm-profile-popup').replaceChildren(...state.settings.llmProfiles.map(p=>{const option=document.createElement('option');option.value=p.id;option.textContent=p.name==='Default configuration'?t(p.name):p.name;return option;}));$('#llm-profile-popup').value=state.settings.activeLlmId;
   $('#enabled').checked=state.settings.enabled;text('#pause',state.settings.enabled?'Quick pause':'Resume suggestions');text('#engine',state.lastEngine || ({auto:'Auto · on-device first',builtin:'Browser on-device',googleweb:'Google Translate (web, experimental)',bing:'Microsoft Bing (web, experimental)',microsoft:'Microsoft Edge (experimental)',azure:'Microsoft Azure',mymemory:'MyMemory',libre:'LibreTranslate',google:'Google Cloud Translation'}[state.settings.basicEngine]));text('#llm',state.settings.llm.enabled?llmProviderName(state.settings.llm.provider):'Off');
@@ -20,7 +23,8 @@ function render(){
     text('#blacklist-status',rule?'On blacklist':'Not on blacklist');text('#toggle-site-blacklist',rule?(rule.toLowerCase()===host.toLowerCase()?'Remove this site from blacklist':'Manage blacklist rule'):'Add this site to blacklist');$('#toggle-site-blacklist').disabled=!access;
   }else $('#toggle-site-blacklist').disabled=true;
 }
-async function refresh(){state=await send('state');if(origin)hasSiteGrant=await chrome.permissions.contains({origins:[origin]});render();}
+async function refresh(){state=await send('state');snooze=await send('get-snooze',{tabId:tab?.id});clearTimeout(snoozeTimer);if(snooze.until>Date.now())snoozeTimer=setTimeout(()=>refresh().catch(()=>{}),Math.min(2147483647,Math.min(...[snooze.allUntil,snooze.siteUntil].filter(until=>until>Date.now()))-Date.now()+40));if(origin)hasSiteGrant=await chrome.permissions.contains({origins:[origin]});render();}
+for(const scope of ['site','all'])$('#resume-snooze-'+scope).addEventListener('click',async()=>{try{await send('clear-snooze',{scope,tabId:tab?.id});await refresh();status('Temporary pause removed.');}catch(error){status(error.message,true);}});
 async function toggle(value){try{await send('toggle',{enabled:value});await refresh();status(value?'Suggestions resumed.':'Suggestions paused. Local analytics remain active.');}catch(e){status(e.message,true);}}
 $('#enabled').addEventListener('change',()=>toggle($('#enabled').checked));$('#pause').addEventListener('click',()=>toggle(!state?.settings.enabled));
 $('#settings').addEventListener('click',()=>openPage('settings.html'));$('#dashboard').addEventListener('click',()=>openPage('dashboard.html'));$('#dashboard-brand').addEventListener('click',e=>{e.preventDefault();openPage('dashboard.html');});
@@ -44,5 +48,6 @@ $('#enable-site').addEventListener('click',async()=>{
 function renderDate(){text('#date',new Date().toLocaleDateString(locale(),{weekday:'long',month:'short',day:'numeric'}));}
 document.addEventListener('input-coach-languagechange',()=>{renderDate();render();});renderDate();
 if(!previewNotice()){
+  chrome.storage.onChanged.addListener((changes,area)=>{if(area==='local' && changes.snoozes)refresh().catch(error=>status(error.message,true));});
   refresh().catch(e=>status(e.message,true));chrome.tabs.query({active:true,currentWindow:true}).then(tabs=>{tab=tabs[0];try{const u=new URL(tab.url);if(!['https:','http:'].includes(u.protocol))throw 0;origin=u.origin+'/*';refresh().catch(()=>{});}catch{$('#enable-site').disabled=true;text('#enable-site','Open a website to get started');}});
 }

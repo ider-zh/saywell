@@ -50,3 +50,4 @@ html[lang="zh-CN"] h1{font-size:26px;letter-spacing:0;line-height:1.35}html[lang
 @media(max-width:600px){.history-columns{grid-template-columns:1fr;gap:12px}.history-controls{padding:12px;gap:10px}.history-controls .actions{width:100%}.history-meta{gap:7px}.history-entry{padding:12px}}
 @media(max-width:600px){.sidebar nav{min-width:0}.sidebar nav a{flex:1 1 0;min-width:0;overflow:hidden}.sidebar .nav-icon{display:none}.sidebar .nav-label{min-width:0;overflow:hidden;text-overflow:ellipsis}}
 .history-entry{overflow-wrap:anywhere}.history-meta>span{max-width:100%}
+.snooze-status{background:#f0f3e6;border:1px solid #d9e2cb;border-radius:6px;padding:9px;margin:6px 0;font-size:11px}.snooze-status .actions{margin-top:6px;gap:6px}.snooze-status button{font-size:10px;padding:3px 7px;min-height:24px}

@@ -1,5 +1,6 @@
 // English source messages are stable keys. Provider/user content is never translated here.
 export default {
+  'Temporarily paused until {time}':'临时暂停至 {time}','Resume this website':'恢复当前网站','Resume all websites':'解除全局暂停','Temporary pause removed.':'已解除临时暂停。',
   'Translation history · Saywell':'翻译历史 · Saywell','Translation history':'翻译历史','History ↗':'历史 ↗','Only on this device':'仅保存在本机',
   'Find an earlier translation or polished expression.':'找回之前的翻译和润色表达。','Search source, result or website':'搜索原文、结果或网站','Search translation history':'搜索翻译历史',
   'Rolling history limit':'滚动保留数量','Off · keep existing history':'关闭记录 · 保留已有历史','Latest 50':'最近 50 条','Latest 100 (default)':'最近 100 条（默认）','Latest 200':'最近 200 条','Latest 500':'最近 500 条','Latest 1,000':'最近 1,000 条',

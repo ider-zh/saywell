@@ -1,6 +1,7 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import worker from '../cloudflare/src/worker.js';
 import {HOSTED_AI_MODEL} from '../src/core/hosted-ai.js';
+import {modelInput} from '../cloudflare/src/model-input.js';
 const input=()=>({text:'你好，世界。',action:'translate',style:'natural',targetLanguage:'en',difficulty:'intermediate',maxWords:0,maxTokens:200,thinking:false});
 const env=()=>({PREVIEW_ENABLED:'true',PREVIEW_UNTIL:'',ALLOWED_ORIGINS:'chrome-extension://test',AI:{run:async()=>({choices:[{message:{content:'{"text":"Hello, world.","vocabulary":[]}'}}],usage:{total_tokens:42}})},CLIENT_LIMIT:{limit:async()=>({success:true})},SERVICE_LIMIT:{limit:async()=>({success:true})}});
 const req=(body=input(),headers={})=>new Request('https://worker.test/v1/coach',{method:'POST',headers:{'Content-Type':'application/json','X-Saywell-Client':'1',...headers},body:JSON.stringify(body)});
@@ -18,8 +19,14 @@ test('Worker health is inference-free, validates configuration, and rejects unli
 
 test('Worker fixes model and system instructions, caps output, disables thinking and returns only validated suggestion text',async()=>{
   const e=env();let sent;e.AI.run=async(model,options)=>{sent={model,options};return {choices:[{message:{content:'{"text":"<img src=x>","vocabulary":[]}',reasoning_content:'private reasoning'}}],usage:{total_tokens:42}};};
-  const response=await worker.fetch(req(),e),data=await response.json();assert.equal(response.status,200);assert.equal(sent.model,HOSTED_AI_MODEL);assert.equal(sent.options.max_completion_tokens,200);assert.deepEqual(sent.options.chat_template_kwargs,{enable_thinking:false});assert.equal(sent.options.store,false);assert.equal(sent.options.stream,false);assert.match(sent.options.messages[0].content,/Saywell/);assert.deepEqual(JSON.parse(sent.options.messages[1].content),{action:'translate',targetLanguage:'en',text:'你好，世界。'});
+  const response=await worker.fetch(req(),e),data=await response.json();assert.equal(response.status,200);assert.equal(sent.model,HOSTED_AI_MODEL);assert.equal(sent.options.max_tokens,200);assert.equal(sent.options.chat_template_kwargs,undefined);assert.equal(sent.options.response_format,undefined);assert.equal(sent.options.stream,false);assert.equal(sent.options.temperature,0.2);assert.match(sent.options.messages[0].content,/Saywell/);assert.match(sent.options.messages[1].content,/\n\/no_think$/);assert.deepEqual(JSON.parse(sent.options.messages[1].content.split('\n')[0]),{action:'translate',targetLanguage:'en',text:'你好，世界。'});
   assert.equal(data.result.text,'<img src=x>');assert.ok(!JSON.stringify(data).includes('private reasoning'));assert.equal(data.usage.total_tokens,42);
+});
+
+test('sponsored model input keeps the tested native template protocol, explicit thinking toggle and Chinese Explain contract',()=>{
+  assert.match(modelInput({...input(),thinking:true},HOSTED_AI_MODEL).messages[1].content,/\n\/think$/);
+  assert.match(modelInput({...input(),action:'explain'},HOSTED_AI_MODEL).messages[0].content,/explanation MUST be nonempty/);
+  assert.throws(()=>modelInput(input(),'arbitrary-model'));
 });
 
 test('Worker rejects arbitrary prompts, malformed input, oversized bodies and output caps before inference',async()=>{
@@ -35,6 +42,7 @@ test('Worker throttles before inference and sanitizes upstream failures without 
     const e=env();e.AI.run=async()=>{throw failure;};const response=await worker.fetch(req(),e),text=await response.text();assert.ok([429,503].includes(response.status));assert.ok(!text.includes('private'));assert.ok(!text.includes('你好'));
   }
   const invalid=env();invalid.AI.run=async()=>({choices:[{message:{content:'not json'}}]});assert.equal((await worker.fetch(req(),invalid)).status,502);
+  const reasoningOnly=env();reasoningOnly.AI.run=async()=>({choices:[{message:{content:'',reasoning_content:'{"text":"must not be promoted from reasoning"}'}}]});const rejected=await worker.fetch(req(),reasoningOnly);assert.equal(rejected.status,502);assert.ok(!(await rejected.text()).includes('must not be promoted'));
 });
 
 test('Worker maps Cloudflare 3036 to a daily quota alert and avoids another inference until UTC reset',async()=>{

@@ -1,5 +1,13 @@
 # Phase 0 — technical validation
 
+## Temporary pause, sentence practice and sponsored MoE model — 2026-10-21
+
+Unit checks cover fixed-hour/local-midnight pause deadlines, independent site/global recovery, expiry, sender-derived scope and processing/metrics/history gates. Browser checks cover the mini menu, delayed-result stability, reload persistence, two real MV3 hostnames, popup recovery and expiry. Practice checks cover autofocus, deletion/insertion/substitution, secondary case/punctuation/spacing, pending suffixes, Unicode and bounded long-input work. Browser tests verify in-text highlights, IME, focus retention, frozen MT while AI finishes, Escape/restart, no extra provider requests/counters, unchanged page drafts and bilingual narrow layouts. Attempts never enter history or storage.
+
+The explicit six-task live candidate test ran before changing the sponsored default and used only synthetic text. The final request passed bidirectional translation, exact grammar correction, unchanged natural English, number/name preservation, vocabulary and nonempty Chinese Explain. No nonempty reasoning was returned. Protocol failures with JSON/template overrides were resolved by the model's native soft-off prompt and strict JSON parsing. Details, observed latency/Neuron costs and limitations are in model-evaluation.md. Automated Worker tests use mock bindings and cover fixed model/token caps, soft-off/on directives, server-built instructions, validation, safe errors and existing quota fallback.
+
+Final local `npm run check` passed **96 Node tests and 46 Chromium scenarios**; `npm run package` and Worker dry-run passed. Practice and pause screenshots were visually checked in English/Chinese and a narrow viewport. The deployed model update passed health/readiness, four synthetic public API tasks and an actual disposable MV3 connection with no key or HTTP errors. No paid resource or plan was introduced.
+
 ## Miniature position pin and local history — 2026-10-21
 
 Pin regressions cover hidden automatic state, pointer/keyboard placement, reload restoration, late LLM replacement, resizing, Chinese title text, pointer/Enter reset and no new processing on reset. Screenshots: `tooltip-pinned-en.png` and `tooltip-pinned-zh.png` under test-results.

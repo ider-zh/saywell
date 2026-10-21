@@ -11,6 +11,7 @@ import {validateSitePreferences,sitePreferencesFor,resolveSiteSettings} from './
 import {exportConfigBackup,parseConfigBackup,configSummary} from './core/config-backup.js';
 import {SETUP_ORIGINS,enableFreeSetup} from './core/setup.js';
 import {HISTORY_LIMITS,historyLimit,historyResult,mergeHistory,trimHistory} from './core/history.js';
+import {snoozeStatus,snoozeDeadline,changeSnooze} from './core/snooze.js';
 
 let writeQueue=Promise.resolve();
 const basicProviders=createBasicProviders();
@@ -31,18 +32,18 @@ async function siteAccess(sender,s) {
   const u=new URL(sender.url);
   return ['https:','http:'].includes(u.protocol) && s.siteOrigins.some(p=>p === `${u.origin}/*` || p === `${u.protocol}//*/*`) && await chrome.permissions.contains({origins:[`${u.origin}/*`]});
 }
-const forSite=async(sender,s)=>await siteAccess(sender,s) && siteAllowed(new URL(sender.url).hostname,s);
+const forSite=async(sender,s)=>await siteAccess(sender,s) && siteAllowed(new URL(sender.url).hostname,s) && !snoozeStatus((await chrome.storage.local.get('snoozes')).snoozes,new URL(sender.url).hostname).until;
 async function preferencesFor(sender,s){
   if(!await siteAccess(sender,s))return {};
   return sitePreferencesFor((await chrome.storage.local.get('sitePreferences')).sitePreferences,new URL(sender.url).hostname.toLowerCase());
 }
 async function contentSettings(s,sender){
-  const {uiLanguage,tooltipSizes,historyPreferences,historyGeneration}=await chrome.storage.local.get(['uiLanguage','tooltipSizes','historyPreferences','historyGeneration']),preferences=sender?await preferencesFor(sender,s):{};
+  const {uiLanguage,tooltipSizes,historyPreferences,historyGeneration,snoozes}=await chrome.storage.local.get(['uiLanguage','tooltipSizes','historyPreferences','historyGeneration','snoozes']),preferences=sender?await preferencesFor(sender,s):{};
   const size=sender && tooltipSizes?.[new URL(sender.url).hostname.toLowerCase()];
   return {...publicSettings(resolveSiteSettings(s,preferences)),sitePreferences:preferences,
     globalDefaults:{mode:s.mode,targetLanguage:s.targetLanguage,basicEngine:s.basicEngine,activeLlmId:s.activeLlmId},
     llmChoices:s.llmProfiles.map(({id,name,provider,model,enabled,consent})=>({id,name,provider,model,enabled,consent})),
-    tooltipSize:validTooltipSize(size)?size:'small',uiLanguage:['en','zh-CN'].includes(uiLanguage)?uiLanguage:'auto',historyLimit:historyLimit(historyPreferences?.limit),historyGeneration:historyGeneration || 0};
+    tooltipSize:validTooltipSize(size)?size:'small',uiLanguage:['en','zh-CN'].includes(uiLanguage)?uiLanguage:'auto',historyLimit:historyLimit(historyPreferences?.limit),historyGeneration:historyGeneration || 0,snoozeUntil:snoozeStatus(snoozes,sender?.url?new URL(sender.url).hostname:null).until};
 }
 async function withKeys(s) {
   const local=await chrome.storage.local.get('keys'), session=await chrome.storage.session.get('keys');
@@ -103,6 +104,19 @@ async function handle(message,sender) {
   if (!message || typeof message.type !== 'string') throw new Error('Invalid message.');
   const isUI=trusted(sender), s=await settings();
   if (message.type === 'public-settings') return contentSettings(s,sender);
+  if(['set-snooze','clear-snooze','get-snooze'].includes(message.type))return serial(async()=>{
+    if(!['site','all'].includes(message.scope) && message.type!=='get-snooze')throw new Error('Invalid pause scope.');
+    if(message.type==='get-snooze' && !isUI)throw new Error('This action is only available from extension pages.');
+    let target=sender;
+    if(isUI){const tab=Number.isInteger(message.tabId)?await chrome.tabs.get(message.tabId):null;target={tab,url:tab?.url};}
+    const host=target.url && /^https?:\/\//.test(target.url)?new URL(target.url).hostname:null;
+    const stored=(await chrome.storage.local.get('snoozes')).snoozes;
+    if(message.type==='get-snooze')return {...snoozeStatus(stored,host),host};
+    if((!isUI || message.scope==='site') && !await siteAccess(target,await settings()))throw new Error('Grant website access first.');
+    const until=message.type==='set-snooze'?snoozeDeadline(message.duration):0;
+    const next=changeSnooze(stored,message.scope,host,until);await chrome.storage.local.set({snoozes:next});
+    return isUI?{...snoozeStatus(next,host),host}:contentSettings(await settings(),sender);
+  });
   if(message.type==='record-history')return serial(async()=>{
     const latest=await settings();if(!latest.enabled || !await forSite(sender,latest))throw new Error('Website is excluded.');
     const data=await chrome.storage.local.get(['translationHistory','historyPreferences','historyGeneration']),limit=historyLimit(data.historyPreferences?.limit);
@@ -185,7 +199,7 @@ async function handle(message,sender) {
     if(message.lane==='mt'){
       if(action.action==='explain' || translationPair(text,effective.targetLanguage).source===effective.targetLanguage)return null;
     }else{
-      if (effective.llm.enabled && effective.llm.consent) return runLLM(text,config,{...action,targetLanguage:effective.targetLanguage,style:effective.style,difficulty:effective.difficulty,maxWords:effective.maxWords});
+      if (effective.llm.enabled && effective.llm.consent) return runLLM(text,config,{...action,targetLanguage:effective.targetLanguage,style:effective.style,difficulty:effective.difficulty,maxWords:effective.maxWords},sender);
       if (message.lane==='llm' || action.needsLLM) throw new Error('Polish and Explain need a connected, enabled LLM service.');
     }
     const health=(await chrome.storage.session.get('health')).health || {};
@@ -333,7 +347,7 @@ async function handle(message,sender) {
   throw new Error('Unknown action.');
 }
 
-async function runLLM(text,s,request) {
+async function runLLM(text,s,request,sender) {
   if (!s.llm.enabled || !s.llm.consent || !await granted(s.llm.endpoint)) throw new Error('Connect the LLM service in Settings before using it.');
   const healthId=s.activeLlmId,h=((await chrome.storage.session.get('llmHealth')).llmHealth || {})[healthId] || {};
   if (h.blocked || h.until>Date.now()) throw new Error(h.message || 'LLM unavailable or cooling down. Check configuration and use Connect and test in Settings.');
@@ -345,6 +359,7 @@ async function runLLM(text,s,request) {
     await chrome.storage.local.set({usage:{day,requests:(sameDay?usage.requests || 0:0)+1,profiles:{...profiles,[healthId]:count+1}}});
   });
   const vocabulary=(await chrome.storage.local.get('vocabulary')).vocabulary || [];
+  if(sender){const latest=await settings();if(!latest.enabled || !await forSite(sender,latest))throw new Error('Suggestions are paused or this website is excluded.');}
   try {
     const result=await processLLM(text,s.llm,{...request,known:vocabulary.filter(v=>v.status==='known').map(v=>v.word)});
     await updateLLMHealth(healthId,{failures:0});
@@ -378,7 +393,7 @@ chrome.permissions.onRemoved.addListener(()=>{ registerSites().then(updateSetupB
 chrome.permissions.onAdded.addListener(()=>{ updateSetupBadge().catch(()=>{}); });
 chrome.storage.onChanged.addListener(async(changes,area)=>{
   if(area==='local' && (changes.settings || changes.setup || changes.uiLanguage))updateSetupBadge().catch(()=>{});
-  if(area!=='local' || (!changes.settings && !changes.uiLanguage && !changes.sitePreferences && !changes.tooltipSizes && !changes.historyPreferences && !changes.historyGeneration))return;
+  if(area!=='local' || (!changes.settings && !changes.uiLanguage && !changes.sitePreferences && !changes.tooltipSizes && !changes.historyPreferences && !changes.historyGeneration && !changes.snoozes))return;
   // Every frame fetches its own effective settings, rather than receiving other hosts' preferences.
   for(const tab of await chrome.tabs.query({})) if(tab.id) chrome.tabs.sendMessage(tab.id,{type:'settings-updated'}).catch(()=>{});
 });

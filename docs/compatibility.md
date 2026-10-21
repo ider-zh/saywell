@@ -1,5 +1,11 @@
 # Compatibility and manual verification
 
+Temporary pause is available through the tooltip's small clock: 1h, 4h or next local midnight, for the sender hostname or globally. Reload/restart preserves deadlines; expiry is checked by timestamp and an awake page timer. Site and global pauses may overlap and are resumed independently in the popup. Pause suppresses suggestions, local counters and history writes; existing in-flight HTTP cannot be recalled, but its stale result is discarded. Permanent blacklist/provider permissions and the ordinary global enable switch remain independent.
+
+Practice works inside the tooltip for either the primary or collapsed MT sentence. Focus, IME commits, local highlighting, restart and Escape are tested without draft replacement or new provider calls. A late AI answer waits until practice closes. Two disposable real-MV3 hostnames verify pause isolation, persistence, popup recovery, global pause and automatic expiry; all provider traffic in these tests stays on localhost.
+
+Qwen3 30B A3B FP8 passed the pre-switch synthetic task set, including grammar and Chinese Explain after prompt refinement. The server's JSON contract and error/MT fallback behavior are preserved. Thinking defaults to a tested native soft-off directive, with an explicit on directive when requested. Six samples are not evidence of universal writing quality or a guaranteed latency improvement; see model-evaluation.md.
+
 The miniature pin appears only for remembered positions, including positions restored from older installations. Click or Enter clears the current hostname's placement and restores adaptation; cancelled drags do not change state. This reuses existing position storage, with no permission or migration required.
 
 Translation history is stored locally with a default rolling limit of 100 source/result entries and a separate 3 MiB budget. Count options and disabled recording are independent of translation pause, analytics, and config backups. The page supports local search, filtered JSON export, clear/delete, scroll loading and both UI languages. Clearing or changing preferences blocks older in-flight history writes while preserving current translation results. Browser fixtures use actual MV3 messaging and localhost synthetic providers; no live user drafts were used.

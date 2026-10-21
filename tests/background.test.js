@@ -28,6 +28,24 @@ const ui={url:'chrome-extension://unit/settings.html'},site={url:'https://chatgp
 const message=(payload,sender=ui)=>new Promise(resolve=>listener(payload,sender,resolve));
 beforeEach(()=>{stores.local={settings:mergeSettings({llm:{},siteOrigins:['https://chatgpt.com/*']})};stores.session={};permissions.clear();permissions.add('https://chatgpt.com/*');network.length=0;bingPageHook=null;});
 
+test('temporary pauses are scoped, persistent, expire by time and gate suggestions, analytics and local history',async()=>{
+  const before=Date.now();assert.equal((await message({type:'set-snooze',scope:'site',duration:'1h'},site)).ok,true);
+  assert.ok(stores.local.snoozes.sites['chatgpt.com']>=before+3600000);assert.equal(stores.local.settings.enabled,true);
+  assert.ok((await message({type:'public-settings'},site)).data.snoozeUntil>Date.now());assert.equal((await message({type:'suggest',text:'合成测试',lane:'mt'},site)).ok,false);
+  await message({type:'metric',delta:{typed:10}},site);assert.equal(stores.local.analytics,undefined);
+  assert.equal((await message({type:'record-history'},site)).ok,false);assert.equal(network.length,0);
+  assert.equal((await message({type:'get-snooze'},site)).ok,false);
+  const other={url:'https://other.example/',tab:{id:3}};assert.equal((await message({type:'set-snooze',scope:'all',duration:'4h'},other)).ok,false);
+  assert.equal((await message({type:'set-snooze',scope:'site',duration:'forever'},site)).ok,false);
+  assert.equal((await message({type:'set-snooze',scope:'all',duration:'4h'},site)).ok,true);
+  assert.ok((await message({type:'get-snooze',tabId:2})).data.allUntil>Date.now());
+  await message({type:'clear-snooze',scope:'all'});assert.ok((await message({type:'get-snooze',tabId:2})).data.siteUntil>Date.now());
+  await message({type:'clear-snooze',scope:'site',tabId:2});assert.equal((await message({type:'public-settings'},site)).data.snoozeUntil,0);
+  stores.local.snoozes={all:Date.now()-1,sites:{'chatgpt.com':Date.now()-1}};
+  assert.equal((await message({type:'public-settings'},site)).data.snoozeUntil,0);await message({type:'metric',delta:{typed:7}},site);assert.ok(stores.local.analytics);
+  assert.equal((await message({type:'export-config'})).data.snoozes,undefined);
+});
+
 test('local history is site-gated, private to extension pages, merges lanes and never enters config/practice exports',async()=>{
   const entry={type:'record-history',generation:0,requestId:'request-one',source:'你好，世界。',action:'translate',targetLanguage:'en',lane:'mt',result:{text:'Hello, world.',engine:'MT',key:'must-not-store'}};
   stores.local.settings.analytics=false;assert.equal((await message(entry,site)).ok,true);

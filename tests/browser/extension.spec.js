@@ -18,6 +18,29 @@ async function pageWithCoach(){
 }
 // Production browser extension pages and worker run normally. The fixture content runtime
 // bridges messages explicitly because optional host grants cannot be auto-approved by headless Chromium.
+
+test('sentence practice focuses locally, prioritizes character differences, keeps IME text and survives a late AI response',async()=>{
+  const p=await pageWithCoach();await p.evaluate(()=>{window.__coachSetSettings({llmEnabled:true});window.__coachDelays={mt:40,llm:1800};});
+  const draft=p.getByRole('textbox',{name:'Draft',exact:true}),tip=p.locator('input-coach-tip');await draft.fill('这是练习用的句子。');await expect(tip.locator('.suggestion')).toHaveText('Hello, world.');
+  await tip.getByRole('button',{name:'Practice this sentence',exact:true}).click();const input=tip.getByRole('textbox',{name:'Retype the suggested sentence'});await expect(input).toBeFocused();
+  await input.fill('hello world!');await expect(tip.locator('.practice-panel')).toHaveAttribute('data-complete','true');await expect(tip.locator('.practice-mirror .practice-major')).toHaveCount(0);await expect(tip.locator('.practice-mirror .practice-minor')).not.toHaveCount(0);
+  await input.fill('Hello, word.');await expect(tip.locator('.practice-panel')).toHaveAttribute('data-complete','false');await expect(tip.locator('.practice-target .practice-major')).toHaveText('l');
+  await input.evaluate(input=>{input.dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true,composed:true}));input.value='你';input.dispatchEvent(new InputEvent('input',{bubbles:true,composed:true,isComposing:true}));});await expect(input).toHaveValue('你');
+  await input.evaluate(input=>input.dispatchEvent(new CompositionEvent('compositionend',{bubbles:true,composed:true,data:'你'})));await expect(tip.locator('.practice-mirror')).toHaveText('你\n');
+  await input.fill('Hello, world.');await expect(tip.locator('.practice-panel')).toHaveAttribute('data-complete','true');await p.waitForTimeout(1900);await expect(input).toBeFocused();await expect(input).toHaveValue('Hello, world.');await expect(tip.locator('.practice-target')).toHaveText('Hello, world.');
+  expect(await p.evaluate(()=>window.__coachRequests.length)).toBe(2);const metrics=await p.evaluate(()=>window.__coachMetrics);expect(metrics.reduce((sum,row)=>sum+(row.typed || 0),0)).toBe(9);expect(metrics.reduce((sum,row)=>sum+(row.accepted || 0),0)).toBe(0);await expect(draft).toHaveValue('这是练习用的句子。');
+  await input.fill('Hello, worxld!');await tip.screenshot({path:'test-results/practice-mt-en.png'});await input.press('Escape');await expect(tip.locator('.practice-panel')).toHaveCount(0);await expect(tip.locator('.suggestion')).toHaveText('We should streamline this process.');
+  await tip.getByRole('button',{name:'Practice this sentence',exact:true}).click();await expect(input).toBeFocused();await input.fill('We should streamline this process.');await expect(tip.locator('.practice-panel')).toHaveAttribute('data-complete','true');await tip.getByRole('button',{name:'Start again'}).click();await expect(input).toHaveValue('');await expect(input).toBeFocused();
+  await input.press('Escape');await p.evaluate(()=>window.__coachSetSettings({uiLanguage:'zh-CN'}));await draft.fill('再试一次中文练习。');await expect(tip.locator('.suggestion')).toHaveText('We should streamline this process.');await tip.getByRole('button',{name:'练习这句话',exact:true}).click();const chineseInput=tip.getByRole('textbox',{name:'重新输入建议句子',exact:true});await expect(chineseInput).toBeFocused();await chineseInput.fill('We should streamline this process.');await p.setViewportSize({width:360,height:640});await expect(tip.locator('.practice-panel')).toHaveAttribute('data-complete','true');await tip.screenshot({path:'test-results/practice-zh.png'});await p.close();
+});
+
+test('mini pause entry keeps late results from replacing choices and sends the selected site/all duration',async()=>{
+  const p=await pageWithCoach();await p.evaluate(()=>{window.__coachSetSettings({llmEnabled:true,uiLanguage:'zh-CN'});window.__coachDelays={mt:30,llm:1100};});
+  await p.getByRole('textbox',{name:'Draft',exact:true}).fill('这是临时暂停测试。');const tip=p.locator('input-coach-tip');await expect(tip.locator('.suggestion')).toHaveText('Hello, world.');
+  await tip.getByRole('button',{name:'临时暂停',exact:true}).click();await tip.getByLabel('暂停时长',{exact:true}).selectOption('tomorrow');await tip.getByLabel('暂停范围',{exact:true}).selectOption('all');await p.waitForTimeout(1200);
+  await expect(tip.getByLabel('暂停时长',{exact:true})).toHaveValue('tomorrow');await expect(tip.getByLabel('暂停范围',{exact:true})).toHaveValue('all');await tip.screenshot({path:'test-results/snooze-menu-zh.png'});await tip.getByRole('button',{name:'暂停',exact:true}).click();await expect(tip).toHaveCount(0);
+  expect(await p.evaluate(()=>window.__coachSnooze)).toMatchObject({scope:'all',duration:'tomorrow'});await p.getByRole('textbox',{name:'Draft',exact:true}).fill('暂停后不再请求。');await p.waitForTimeout(1100);expect(await p.evaluate(()=>window.__coachRequests.length)).toBe(2);await p.close();
+});
 test('website settings save action, target and providers, survive reload, and reset without changing global defaults',async()=>{
   const p=await pageWithCoach();
   const configure=()=>p.evaluate(()=>window.__coachSetSettings({llmChoices:[{id:'default',name:'Global',provider:'compatible',model:'global',enabled:false,consent:false},{id:'work',name:'Writing',provider:'mimo',model:'site-model',enabled:true,consent:true}]}));await configure();
@@ -581,7 +604,7 @@ test('tooltip Small, Medium and Large resize in place, preserve late results and
 
 test('Saywell free AI preset fills endpoint and fixed model, needs no key and keeps thinking off without making automatic calls',async()=>{
   const p=await providerSetupPage();try{
-    await p.locator('#llm-provider').selectOption('saywell');await expect(p.locator('#llm-model')).toHaveValue('@cf/qwen/qwen3.8-27b');await expect(p.locator('#llm-model')).not.toBeEditable();await expect(p.locator('#llm-key')).toBeHidden();await expect(p.locator('#llm-thinking')).not.toBeChecked();await expect(p.locator('#llm-provider-help')).toContainText('08:00');
+    await p.locator('#llm-provider').selectOption('saywell');await expect(p.locator('#llm-model')).toHaveValue('@cf/qwen/qwen3-30b-a3b-fp8');await expect(p.locator('#llm-model')).not.toBeEditable();await expect(p.locator('#llm-key')).toBeHidden();await expect(p.locator('#llm-thinking')).not.toBeChecked();await expect(p.locator('#llm-provider-help')).toContainText('08:00');
     expect((await p.evaluate(()=>window.__providerCalls)).filter(c=>c.type!=='save')).toEqual([]);await p.locator('#test-llm').click();await expect(p.getByRole('status')).toHaveText('Connected to Synthetic LLM. Synthetic request completed.');const calls=await p.evaluate(()=>window.__providerCalls);expect(calls.filter(c=>c.type!=='save').map(c=>c.type)).toEqual(['permission','test-llm']);expect(calls.find(c=>c.type==='permission').origins).toEqual([new URL(HOSTED_AI_ENDPOINT).origin+'/*']);
     await p.locator('#ui-language').selectOption('zh-CN');await expect(p.locator('#llm-provider-help')).toContainText('免费额度');await p.locator('#llm').screenshot({path:'test-results/saywell-free-ai-zh.png',style:'.save-bar,.section-nav{visibility:hidden}'});
   }finally{await p.locator('#ui-language').selectOption('en');await p.close();}
