@@ -116,6 +116,8 @@ npm run package
 
 如需使用已有的 Playwright 兼容 Chromium，可将 `INPUT_COACH_BROWSER` 设为其绝对路径。扩展无运行时 npm 依赖，不加载远程脚本。
 
+`npm run check` 也会检查输入、练习 diff、滚动定位和自动建议圆环的性能预算，超限即失败。核心计时可用 `npm run test:performance` 单独运行；数值、测试方式和优化记录见[输入性能与回归预算](docs/performance-review.md)。CI 报告保留测量 JSON，便于比较后续更新。
+
 ## 自动构建
 
 每次推送代码、提交 Pull Request 或在 Actions 点击 **Run workflow** 时，会自动：

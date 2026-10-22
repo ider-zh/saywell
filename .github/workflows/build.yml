@@ -47,7 +47,7 @@ jobs:
           archive: false
           if-no-files-found: error
           retention-days: 14
-      - name: Upload browser test evidence
+      - name: Upload test and performance evidence
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
@@ -55,5 +55,6 @@ jobs:
           path: |
             test-results/
             playwright-report/
+            performance-results/
           if-no-files-found: ignore
           retention-days: 7

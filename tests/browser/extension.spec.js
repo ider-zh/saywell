@@ -1,6 +1,7 @@
 import {test,expect,chromium} from '@playwright/test';
 import {mergeSettings} from '../../src/core/settings.js';
 import {HOSTED_AI_ENDPOINT,LEGACY_HOSTED_AI_ENDPOINT} from '../../src/core/hosted-ai.js';
+import {INPUT_BUDGETS} from '../performance-budgets.js';
 import {createServer} from 'node:http';import {readFile,mkdtemp,rm} from 'node:fs/promises';import os from 'node:os';import path from 'node:path';
 let context,extensionId,server,base,profile,worker;
 test.beforeAll(async()=>{
@@ -11,13 +12,82 @@ test.beforeAll(async()=>{
   worker=context.serviceWorkers()[0] || await context.waitForEvent('serviceworker');extensionId=new URL(worker.url()).host;
 });
 test.afterAll(async()=>{await context?.close();await new Promise(resolve=>server.close(resolve));await rm(profile,{recursive:true,force:true});});
-async function pageWithCoach(){
+async function pageWithCoach(beforeInject){
   const p=await context.newPage();await p.goto(base);
   await p.addScriptTag({path:path.resolve('tests/browser/mock-runtime.js')});
+  if(beforeInject)await p.evaluate(beforeInject);
   await p.addScriptTag({path:path.resolve('dist/content.js')});return p;
 }
 // Production browser extension pages and worker run normally. The fixture content runtime
 // bridges messages explicitly because optional host grants cannot be auto-approved by headless Chromium.
+
+test('long native and rich input meet latency budgets under CPU throttling',async()=>{
+  const rows=[];
+  for(const [name,length,automatic] of [['Draft',60000,false],['Rich editor',60000,false],['Draft',5000,true],['Rich editor',5000,true]]){
+    const p=await pageWithCoach(()=>{window.__coachSetSettings({autoSuggest:false});window.__perfInputTimes=[];const add=document.addEventListener;document.addEventListener=function(type,fn,options){if(['input','beforeinput'].includes(type)){const original=fn;fn=function(event){const start=performance.now(),rect=Element.prototype.getBoundingClientRect;let geometryReads=0;Element.prototype.getBoundingClientRect=function(){geometryReads++;return rect.call(this);};try{return original.call(this,event);}finally{Element.prototype.getBoundingClientRect=rect;window.__perfInputTimes.push({type,ms:performance.now()-start,geometryReads});}};}return add.call(this,type,fn,options);};window.__restoreDocumentAdd=()=>{document.addEventListener=add;};});
+    await p.evaluate(automatic=>window.__coachSetSettings({autoSuggest:automatic,llmEnabled:automatic}),automatic);
+    await p.evaluate(()=>window.__restoreDocumentAdd());const cdp=await context.newCDPSession(p);await cdp.send('Emulation.setCPUThrottlingRate',{rate:INPUT_BUDGETS.cpuSlowdown});
+    const editor=p.getByRole('textbox',{name,exact:true});await editor.evaluate((element,length)=>{const text='A synthetic writing sentence. '.repeat(Math.ceil(length/30)).slice(0,length);if(element.matches('textarea'))element.value=text;else{const block=document.createElement('p');block.textContent=text;element.replaceChildren(block);}element.focus();if(element.matches('textarea'))element.setSelectionRange(text.length,text.length);else{const range=document.createRange();range.selectNodeContents(element);range.collapse(false);const selection=getSelection();selection.removeAllRanges();selection.addRange(range);}},length);
+    await editor.pressSequentially('Hello synthetic input performance.');const values=await p.evaluate(()=>window.__perfInputTimes),before=values.filter(value=>value.type==='beforeinput').map(value=>value.ms),after=values.filter(value=>value.type==='input').map(value=>value.ms),quantile=(items,q)=>items.toSorted((a,b)=>a-b)[Math.floor(items.length*q)];
+    rows.push({editor:name,characters:length,automatic,events:after.length,synchronousGeometryReads:values.reduce((total,value)=>total+value.geometryReads,0),cpuSlowdown:INPUT_BUDGETS.cpuSlowdown,beforeInputMedianMs:quantile(before,.5),inputMedianMs:quantile(after,.5),inputP95Ms:quantile(after,.95),combinedMedianMs:quantile(after.map((ms,i)=>ms+before[i]),.5)});await p.close();
+  }
+  await test.info().attach('input-latency-budgets',{body:JSON.stringify({budgets:INPUT_BUDGETS,rows},null,2),contentType:'application/json'});console.log('Browser input budgets: '+JSON.stringify(rows));
+  for(const row of rows){expect(row.events).toBeGreaterThanOrEqual(30);expect(row.synchronousGeometryReads).toBe(0);for(const metric of ['beforeInputMedianMs','inputMedianMs','inputP95Ms','combinedMedianMs'])expect(row[metric],`${row.editor} ${metric}; see input-latency-budgets attachment`).toBeLessThanOrEqual(INPUT_BUDGETS[metric]);}
+});
+
+test('quiet-time progress stays outside the editor and reveals only the first usable parallel result',async()=>{
+  for(const first of ['mt','llm']){
+    const p=await pageWithCoach();await p.evaluate(()=>{window.__coachSetSettings({llmEnabled:true,uiLanguage:'zh-CN',debounce:700});window.__releaseLane={};const send=chrome.runtime.sendMessage;chrome.runtime.sendMessage=async message=>{const reply=await send(message);if(message.type==='suggest')await new Promise(resolve=>window.__releaseLane[message.lane]=resolve);return reply;};});
+    const draft=p.getByRole('textbox',{name:'Draft',exact:true}),ring=p.locator('saywell-progress'),tip=p.locator('input-coach-tip');await draft.fill('测试等待进度。');
+    await expect(ring).toHaveAttribute('data-phase','countdown');await expect(ring).toHaveAttribute('aria-label','接下来：翻译');await expect(tip).toHaveCount(0);await expect(draft).toBeFocused();
+    const outside=async()=>{const a=await ring.boundingBox(),b=await draft.boundingBox();return a.width===24 && a.height===24 && (a.x+a.width<=b.x || a.x>=b.x+b.width || a.y+a.height<=b.y || a.y>=b.y+b.height);};expect(await outside()).toBe(true);
+    if(first==='mt')await p.screenshot({path:'test-results/progress-countdown-zh.png'});
+    await expect(ring).toHaveAttribute('data-phase','waiting');await expect(tip).toHaveCount(0);expect(await p.evaluate(()=>window.__coachRequests.length)).toBe(2);
+    await p.evaluate(first=>window.__releaseLane[first](),first);
+    await expect(tip.locator('.suggestion')).toHaveText(first==='mt'?'Hello, world.':'We should streamline this process.');await expect(ring).toHaveCount(0);await expect(tip.locator('.card')).toHaveClass(/from-progress/);await expect(draft).toBeFocused();
+    if(first==='mt'){await p.waitForTimeout(220);await p.screenshot({path:'test-results/progress-result-zh.png'});}
+    await p.evaluate(first=>window.__releaseLane[first==='mt'?'llm':'mt'](),first);
+    await expect(tip.locator('.suggestion')).toHaveText('We should streamline this process.');await expect(tip.locator('.mt-result')).toBeVisible();expect(await tip.locator('.mt-result').evaluate(element=>element.open)).toBe(false);await p.close();
+  }
+});
+
+test('IME candidates freeze progress, invalidate in-flight results and restart only after commit',async()=>{
+  const p=await pageWithCoach();await p.evaluate(()=>{window.__coachSetSettings({debounce:650});window.__coachDelay=900;});
+  const draft=p.getByRole('textbox',{name:'Draft',exact:true}),ring=p.locator('saywell-progress'),tip=p.locator('input-coach-tip');await draft.fill('输入法暂停测试。');await expect(ring).toHaveAttribute('data-phase','countdown');
+  await draft.evaluate(input=>{input.dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true,composed:true}));input.value+='pin';input.dispatchEvent(new InputEvent('input',{bubbles:true,composed:true,isComposing:true,data:'pin',inputType:'insertCompositionText'}));});
+  await expect(ring).toHaveAttribute('data-paused','');await p.waitForTimeout(80);const offset=await ring.locator('.progress').evaluate(circle=>getComputedStyle(circle).strokeDashoffset);await p.waitForTimeout(750);expect(await ring.locator('.progress').evaluate(circle=>getComputedStyle(circle).strokeDashoffset)).toBe(offset);expect(await p.evaluate(()=>window.__coachRequests.length)).toBe(0);await expect(tip).toHaveCount(0);await p.screenshot({path:'test-results/progress-ime-paused.png'});
+  const commit=()=>draft.evaluate(input=>{input.value='输入法确认上屏。';input.dispatchEvent(new CompositionEvent('compositionend',{bubbles:true,composed:true,data:'上屏'}));});await commit();await expect(ring).not.toHaveAttribute('data-paused');await expect(ring).toHaveAttribute('data-phase','waiting');
+  await draft.evaluate(input=>input.dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true,composed:true})));await expect(ring).toHaveAttribute('data-paused','');await p.waitForTimeout(1000);await expect(tip).toHaveCount(0);expect(await p.evaluate(()=>window.__coachRequests.length)).toBe(1);
+  await commit();await expect(ring).toHaveAttribute('data-phase','countdown');await expect(tip.locator('.suggestion')).toHaveText('Hello, world.');await expect(ring).toHaveCount(0);await p.close();
+});
+
+test('progress cancels on edits, Escape and policy changes and avoids full-screen editors',async()=>{
+  const p=await pageWithCoach();await p.emulateMedia({reducedMotion:'reduce'});await p.evaluate(()=>window.__coachSetSettings({debounce:900}));const draft=p.getByRole('textbox',{name:'Draft',exact:true}),ring=p.locator('saywell-progress');
+  await draft.fill('等待第一句话。');await expect(ring).toBeVisible();const reads=await draft.evaluate(async editor=>{let reads=0;const original=editor.getBoundingClientRect;editor.getBoundingClientRect=function(){reads++;return original.call(this);};for(let i=0;i<80;i++)window.dispatchEvent(new Event('scroll'));const sync=reads;await new Promise(requestAnimationFrame);editor.getBoundingClientRect=original;return{sync,total:reads};});expect(reads).toEqual({sync:0,total:1});await draft.fill('等待第二句话。');await expect(ring).toHaveAttribute('data-phase','countdown');await draft.press('Escape');await expect(ring).toHaveCount(0);await p.waitForTimeout(1000);expect(await p.evaluate(()=>window.__coachRequests.length)).toBe(0);
+  await draft.fill('窗口变化时避让输入框。');await expect(ring).toBeVisible();expect(await ring.locator('.progress').evaluate(circle=>circle.getAnimations().length)).toBe(0);await p.setViewportSize({width:360,height:640});await expect.poll(async()=>{const a=await ring.boundingBox(),b=await draft.boundingBox();return a && a.x>=12 && a.x+a.width<=348 && (a.y+a.height<=b.y || a.y>=b.y+b.height);}).toBe(true);
+  await draft.evaluate(input=>{input.style.cssText='position:fixed;inset:0;width:100vw;height:100vh;margin:0;box-sizing:border-box';});await p.evaluate(()=>window.dispatchEvent(new Event('resize')));await expect(ring).toBeHidden();
+  await p.evaluate(()=>window.__coachSetSettings({blocklist:[location.hostname]}));await expect(ring).toHaveCount(0);await p.close();
+});
+
+test('disabled analytics and automatic suggestions leave rich typing alone, while manual suggestions still work',async()=>{
+  const p=await pageWithCoach();await p.evaluate(()=>window.__coachSetSettings({analytics:false,autoSuggest:false}));
+  const editor=p.getByRole('textbox',{name:'Rich editor',exact:true});await editor.evaluate(element=>{const descriptor=Object.getOwnPropertyDescriptor(HTMLElement.prototype,'innerText');window.__editorReads=0;Object.defineProperty(element,'innerText',{get(){window.__editorReads++;return descriptor.get.call(this);},set(value){return descriptor.set.call(this,value);}});});
+  await editor.fill('手动翻译仍然可用。');expect(await p.evaluate(()=>window.__editorReads)).toBe(0);await editor.press('Alt+Shift+E');await expect(p.locator('input-coach-tip .suggestion')).toHaveText('Hello, world.');
+  await p.evaluate(()=>window.__editorReads=0);await editor.fill('继续输入，不做自动处理。');await expect(p.locator('input-coach-tip')).toHaveCount(0);expect(await p.evaluate(()=>window.__editorReads)).toBe(0);expect(await p.evaluate(()=>window.__coachRequests.length)).toBe(1);await p.close();
+});
+
+test('scroll bursts batch tooltip geometry and practice highlighting never runs synchronously inside typing',async()=>{
+  const p=await pageWithCoach();await p.evaluate(()=>{window.__coachResponse={text:'A short synthetic sentence with several words. '.repeat(9),engine:'Fixture',category:'basic'};});await p.getByRole('textbox',{name:'Draft',exact:true}).fill('测试高频滚动与练习输入。');const tip=p.locator('input-coach-tip');await expect(tip.locator('.suggestion')).toBeVisible();
+  await p.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+  const rects=await tip.evaluate(async host=>{let reads=0;const original=host.getBoundingClientRect;host.getBoundingClientRect=function(){reads++;return original.call(this);};for(let i=0;i<80;i++)window.dispatchEvent(new Event('scroll'));const sync=reads;await new Promise(requestAnimationFrame);host.getBoundingClientRect=original;return{sync,total:reads};});expect(rects.sync).toBe(0);expect(rects.total).toBeLessThanOrEqual(2);
+  await tip.getByRole('button',{name:'Practice this sentence',exact:true}).click();const input=tip.getByRole('textbox',{name:'Retype the suggested sentence'});
+  const immediate=await input.evaluate(input=>{const mirror=input.parentElement.querySelector('.practice-mirror'),before=mirror.textContent;for(let i=0;i<20;i++){input.value='A SHORT SYNTHETIC SENTENCE WITH SEVERAL WORDS. '.repeat(9).slice(0,100+i);input.dispatchEvent(new InputEvent('input',{bubbles:true,composed:true,inputType:'insertText',data:'a'}));}return{before,after:mirror.textContent,latest:input.value};});expect(immediate.after).toBe(immediate.before);await expect(tip.locator('.practice-mirror')).toHaveText(immediate.latest+'\n');await expect(input).toBeFocused();expect(await p.evaluate(()=>window.__coachRequests.length)).toBe(1);await p.close();
+});
+
+test('paired Slate beforeinput and input events keep the settled suggestion timer',async()=>{
+  const p=await pageWithCoach();await p.evaluate(()=>{const editor=document.createElement('div'),block=document.createElement('div');for(const[name,value]of Object.entries({contenteditable:'true','data-slate-editor':'true',role:'textbox','aria-label':'Slate composer'}))editor.setAttribute(name,value);block.setAttribute('data-slate-node','element');editor.append(block);document.body.append(editor);editor.addEventListener('beforeinput',event=>{event.preventDefault();const span=document.createElement('span');span.setAttribute('data-slate-string','true');span.textContent=event.data;editor.firstChild.replaceChildren(span);editor.dispatchEvent(new InputEvent('input',{bubbles:true,composed:true,inputType:'insertText',data:event.data}));});});const editor=p.getByRole('textbox',{name:'Slate composer',exact:true});
+  await editor.click();await p.keyboard.insertText('成对事件测试。');await expect(p.locator('input-coach-tip .suggestion')).toHaveText('Hello, world.');expect(await p.evaluate(()=>window.__coachRequests.length)).toBe(1);await p.close();
+});
 
 test('sentence practice focuses locally, prioritizes character differences, keeps IME text and survives a late AI response',async()=>{
   const p=await pageWithCoach();await p.evaluate(()=>{window.__coachSetSettings({llmEnabled:true});window.__coachDelays={mt:40,llm:1800};});

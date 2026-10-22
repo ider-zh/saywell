@@ -5,6 +5,8 @@ export function siteInfo(host,settings,browserLanguage='en'){
   return {host,mode:settings.siteMode || 'blacklist',blocked:Boolean(rule),rule,canRemove:rule?.toLowerCase()===host.toLowerCase(),language:resolveLanguage(settings.uiLanguage,browserLanguage),preferences:settings.sitePreferences || {},defaults:settings.globalDefaults || {},profiles:settings.llmChoices || []};
 }
 const chinese={
+  'Next: translate':'接下来：翻译','Next: polish':'接下来：润色','Next: explain':'接下来：解释','Waiting for MT / LLM…':'正在等待机器翻译 / 大模型结果…',
+  'Input method composing · paused':'输入法选词中 · 已暂停',
   'Pause temporarily':'临时暂停','Pause for':'暂停时长','Pause on':'暂停范围','1 hour':'1 小时','4 hours':'4 小时','Until tomorrow':'到明天零点','This website':'当前网站','All websites':'所有网站','Pause':'暂停',
   'Practice this sentence':'练习这句话','Practice MT':'练习机器译文','Sentence practice':'句子练习','Try it yourself':'自己输入一遍','Close practice':'关闭练习','Retype the suggested sentence':'重新输入建议句子','Retype the sentence here…':'在这里重新输入这句话…','Start again':'重新练习',
   'Type at your own pace.':'按自己的节奏输入。','Words match · only case or punctuation differs.':'文字已匹配，仅大小写、空格或标点不同。','Sentence matched.':'句子完全匹配。','{major} character changes · {minor} minor changes':'{major} 处文字差异 · {minor} 处次要差异',

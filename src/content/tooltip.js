@@ -1,9 +1,9 @@
 import {siteText} from './site-controls.js';
 import {createMark} from '../brand/mark.js';
 import {llmProviderName} from '../core/llm-providers.js';
-import {validTooltipPosition,tooltipBounds,clampTooltip,relativeTooltip,placedTooltip} from '../core/tooltip-position.js';
+import {validTooltipPosition,tooltipBounds,clampTooltip,relativeTooltip,placedTooltip,safeTooltipDock} from '../core/tooltip-position.js';
 import {TOOLTIP_SIZES,validTooltipSize} from '../core/tooltip-size.js';
-import {practiceDiff} from '../core/practice-diff.js';
+import {createPracticeComparer} from '../core/practice-diff.js';
 const css=`
 :host{all:initial;color-scheme:light;font:14px/1.5 'Segoe UI',sans-serif;color:#203d36;position:fixed;z-index:2147483647;display:block;width:min(410px,calc(100vw - 24px));}
 *{box-sizing:border-box} .card{background:#fffef9;border:1px solid #cdd8cd;border-radius:16px;box-shadow:0 12px 45px #163b3426;overflow:hidden;padding:16px;animation:arrive .16s ease-out}
@@ -16,6 +16,9 @@ const dragCSS='.drag-handle{display:flex;align-items:center;gap:5px;flex:1;min-w
 const sizeCSS=`:host{--pad:10px;--text:16px;--body:130px;--space:7px;font-size:12px}:host([data-size=medium]){--pad:13px;--text:18px;--body:190px;--space:10px;font-size:13px}:host([data-size=large]){--pad:16px;--text:20px;--body:260px;--space:12px;font-size:14px}.card{padding:var(--pad)}header{margin-bottom:var(--space);gap:5px}.suggestion{font-size:var(--text);max-height:var(--body);margin:6px 0 var(--space)}.toolbar{margin-bottom:var(--space);flex-wrap:wrap;gap:5px}.engine{letter-spacing:0;overflow-wrap:anywhere}footer{padding-top:var(--space);gap:5px}footer button{padding:4px 8px}.tooltip-size{width:74px;min-width:0;font-size:10px;padding:3px;flex:none}.saywell-mark{width:19px;height:19px}.grip{margin-right:3px}.note:empty{display:none}`;
 const practiceCSS=`.mini-entry{border:0;padding:2px 0;color:#71806c;font-size:10px}.snooze-entry{display:grid;place-items:center;flex:none;width:20px;height:22px;border:0;padding:0;font-size:17px;color:#71806c}.mini-menu{background:#f2f5ec;border-radius:8px;padding:9px;margin-bottom:9px;display:flex;flex-wrap:wrap;gap:7px;align-items:end}.mini-menu[hidden]{display:none}.mini-menu label{display:grid;gap:3px;font-size:10px;flex:1;min-width:80px}.mini-menu select{width:100%;min-width:0;font-size:11px}.mini-menu button{font-size:10px;padding:4px 7px}.practice-panel{margin:8px 0 12px;padding:10px;background:#f4f6ee;border:1px solid #e0e6d6;border-radius:10px}.practice-heading{display:flex;align-items:center;justify-content:space-between;font-size:11px;font-weight:600}.practice-heading button{padding:0 4px;border:0;font-size:16px}.practice-target{font:15px/1.5 Georgia,serif;white-space:pre-wrap;overflow-wrap:anywhere;max-height:85px;overflow:auto;margin:7px 0 9px}.practice-editor{position:relative}.practice-editor textarea,.practice-mirror{font:14px/1.6 'Segoe UI',sans-serif;letter-spacing:normal;white-space:pre-wrap;overflow-wrap:anywhere;tab-size:4;padding:9px;margin:0;box-sizing:border-box}.practice-editor textarea{display:block;position:relative;z-index:1;background:transparent;color:#203d36;caret-color:#234f40;width:100%;height:88px;min-height:65px;max-height:150px;resize:vertical;border:1px solid #c7d2bd;border-radius:7px}.practice-editor textarea:focus{outline:2px solid #718e65;outline-offset:1px}.practice-mirror{position:absolute;top:1px;left:1px;pointer-events:none;overflow:hidden;color:transparent;background:#fffef9;border-radius:6px}.practice-mirror mark{color:transparent}.practice-major{background:#f6d8cf;border-radius:2px;text-decoration:underline;text-decoration-color:#b85d42}.practice-minor{background:#ece9d6;border-radius:2px;text-decoration:underline dotted #aa9d6b}.practice-pending{color:#94a08d;background:transparent}.practice-summary{display:flex;align-items:start;justify-content:space-between;gap:8px;margin-top:7px;font-size:10px;color:#71806c}.practice-summary p{margin:0}.practice-summary button{border:0;padding:0;white-space:nowrap;font-size:10px}.practice-help{margin:5px 0 0;font-size:10px;color:#7b8874}:host([data-practicing]) .suggestion,:host([data-practicing]) .practice-entry{display:none}`;
 const node=(tag,text,attrs={})=>{const e=document.createElement(tag); if(text!==undefined)e.textContent=text;for(const[k,v]of Object.entries(attrs))e.setAttribute(k,v);return e;};
+const progressCSS=`:host{all:initial;position:fixed;display:block;width:24px;height:24px;z-index:2147483647;pointer-events:none;contain:strict;color:#315f48}svg{display:block;width:24px;height:24px;background:#fffef9;border-radius:50%;box-shadow:0 1px 4px #163b3426}circle{fill:none;stroke-width:2}.track{stroke:#dde5d7}.progress{stroke:currentColor;stroke-linecap:round;stroke-dasharray:100;stroke-dashoffset:100;transform:rotate(-90deg);transform-origin:center}:host([data-phase=waiting]) svg{animation:waiting 1s linear infinite}:host([data-phase=waiting]) .progress{stroke-dashoffset:72}@keyframes waiting{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){:host([data-phase=waiting]) svg{animation:none}}`;
+// Animate decoration, not button geometry: pointer-down/click must keep the same target.
+const revealCSS='.card.from-progress{position:relative;animation:reveal .18s ease-out}.card.from-progress::before{content:"";position:absolute;inset:0;background:#dfead6;pointer-events:none;transform-origin:inherit;animation:unfold .18s ease-out forwards}@keyframes reveal{from{opacity:0}to{opacity:1}}@keyframes unfold{from{opacity:.55;transform:scale(.08)}to{opacity:0;transform:scale(1)}}@media(prefers-reduced-motion:reduce){.card.from-progress{animation:none}.card.from-progress::before{display:none}}';
 export class Tooltip {
   constructor({onDismiss,onMode,onApply,onCopy,onWord,onPrepare,onSiteBlocked,onSiteControlStart,onPositionChange,onSitePreferences,onSizeChange,onSnooze}) {
     this.host=document.createElement('input-coach-tip'); this.host.setAttribute('data-input-coach-ignore','');this.host.tabIndex=-1;
@@ -25,18 +28,56 @@ export class Tooltip {
     const release=()=>{if(!this.pointerActive)return;this.pointerActive=false;setTimeout(()=>this.flushQueued(),0);};
     document.addEventListener('pointerup',release,true);document.addEventListener('pointercancel',release,true);
     this.host.addEventListener('focusout',()=>setTimeout(()=>this.flushQueued(),0));
-    this.observer=new ResizeObserver(()=>{
-      this.practice?.sync?.();
-      cancelAnimationFrame(this.positionFrame);
-      this.positionFrame=requestAnimationFrame(()=>this.position(this.editor));
-    });
+    this.observer=new ResizeObserver(()=>this.requestPosition(this.editor));
     this.observer.observe(this.host);
   }
   discardQueued(){this.queuedView=null;}
+  queueProgress(editor,{duration=0,action='translate',site,waiting=false}={}){
+    this.progressState={editor,duration,action,site,waiting,started:performance.now()};
+    // Defer DOM insertion and all geometry out of the editor's input handler.
+    if(!this.progressFrame)this.progressFrame=requestAnimationFrame(()=>{this.progressFrame=0;this.renderProgress();});
+  }
+  hideProgress(){
+    cancelAnimationFrame(this.progressFrame);this.progressFrame=0;this.progressState=null;
+    this.progressAnimation?.cancel();this.progressAnimation=null;if(this.progressHost?.isConnected)this.progressHost.remove();
+  }
+  pauseProgress(){
+    const state=this.progressState;if(!state || state.paused)return;
+    state.paused=true;state.pausedAt=performance.now();this.progressAnimation?.pause();
+    if(this.progressHost){this.progressHost.setAttribute('data-paused','');const text=siteText(state.site || {},'Input method composing · paused');this.progressHost.setAttribute('aria-label',text);this.progressHost.title=text;this.progressGlyph.textContent='Ⅱ';}
+  }
+  renderProgress(){
+    const state=this.progressState;if(!state || !state.editor?.isConnected)return this.hideProgress();
+    if(!this.progressHost){
+      this.progressHost=node('saywell-progress',undefined,{'data-input-coach-ignore':'',role:'status'});
+      const shadow=this.progressHost.attachShadow({mode:'open'}),svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('aria-hidden','true');
+      for(const name of ['track','progress']){const circle=document.createElementNS(svg.namespaceURI,'circle');for(const[key,value]of Object.entries({cx:12,cy:12,r:8,pathLength:100,class:name}))circle.setAttribute(key,value);svg.append(circle);if(name==='progress')this.progressCircle=circle;}
+      const glyph=document.createElementNS(svg.namespaceURI,'text');for(const[key,value]of Object.entries({x:12,y:14.5,'text-anchor':'middle',fill:'currentColor','font-size':7,'font-family':'system-ui,sans-serif'}))glyph.setAttribute(key,value);svg.append(glyph);this.progressGlyph=glyph;
+      shadow.append(node('style',progressCSS+':host([data-paused]) svg{animation-play-state:paused}'),svg);
+    }
+    const label=state.paused?'Input method composing · paused':state.waiting?'Waiting for MT / LLM…':`Next: ${state.action}`,text=siteText(state.site || {},label);
+    this.progressHost.setAttribute('aria-label',text);this.progressHost.title=text;this.progressHost.dataset.phase=state.waiting?'waiting':'countdown';
+    this.progressHost.toggleAttribute('data-paused',Boolean(state.paused));
+    this.progressGlyph.textContent=state.paused?'Ⅱ':state.waiting?'·':state.action==='translate'?(state.site?.language==='zh-CN'?'译':'T'):state.action==='polish'?(state.site?.language==='zh-CN'?'润':'P'):'?';
+    this.progressAnimation?.cancel();this.progressAnimation=null;
+    if(!state.waiting && !matchMedia('(prefers-reduced-motion: reduce)').matches){this.progressAnimation=this.progressCircle.animate([{strokeDashoffset:100},{strokeDashoffset:0}],{duration:state.duration,delay:-((state.pausedAt ?? performance.now())-state.started),fill:'forwards'});if(state.paused)this.progressAnimation.pause();}
+    if(!this.progressHost.isConnected)document.documentElement.append(this.progressHost);
+    this.positionProgress();
+  }
+  positionProgress(){
+    const state=this.progressState;if(!state || !this.progressHost?.isConnected)return;
+    if(!state.editor.isConnected)return this.hideProgress();
+    const viewport=this.viewport(),rect=state.editor.getBoundingClientRect();
+    const dock=safeTooltipDock(viewport,rect,{width:TOOLTIP_SIZES[this.size],height:210});
+    let point=dock;
+    if(this.placement){const saved=placedTooltip(this.placement,tooltipBounds(viewport,{width:TOOLTIP_SIZES[this.size],height:210}));if(saved.left+24<=rect.left-8 || saved.left>=rect.right+8 || saved.top+24<=rect.top-8 || saved.top>=rect.bottom+8)point=saved;}
+    this.progressHost.style.display=point?'block':'none';
+    if(point){this.progressHost.style.left=point.left+'px';this.progressHost.style.top=point.top+'px';}
+  }
   editingSite(){return this.shadow.activeElement?.matches('[data-site-field],.tooltip-size');}
   setSize(size){this.size=validTooltipSize(size)?size:'small';this.host.dataset.size=this.size;if(this.sizeControl)this.sizeControl.value=this.size;this.position(this.editor);}
   flushQueued(){if(!this.practice && !this.snoozeOpen && !this.pointerActive && !this.editingSite() && this.queuedView && this.host.isConnected){const[editor,view]=this.queuedView;this.queuedView=null;this.show(editor,view);}}
-  close(){this.discardQueued();this.cancelDrag();this.pointerActive=false;this.siteOpen=false;this.siteKey=null;this.practice=null;this.snoozeOpen=false;this.host.removeAttribute('data-practicing');this.host.remove();}
+  close(keepProgress=false){if(!keepProgress)this.hideProgress();this.discardQueued();this.cancelDrag();cancelAnimationFrame(this.positionFrame);cancelAnimationFrame(this.practiceFrame);this.positionFrame=0;this.practiceFrame=0;this.pointerActive=false;this.siteOpen=false;this.siteKey=null;this.practice=null;this.snoozeOpen=false;if(this.host.hasAttribute('data-practicing'))this.host.removeAttribute('data-practicing');if(this.host.isConnected)this.host.remove();}
   openSiteSettings(){const panel=this.shadow.querySelector('.site-policy');if(panel){panel.open=true;this.siteOpen=true;this.position(this.editor);}}
   restorePosition(position){this.placement=validTooltipPosition(position)?{x:position.x,y:position.y}:null;this.updatePositionControl();this.position(this.editor);}
   updatePositionControl(){
@@ -47,7 +88,7 @@ export class Tooltip {
   }
   viewport(){const v=window.visualViewport;return {left:v?.offsetLeft || 0,top:v?.offsetTop || 0,width:v?.width || innerWidth,height:v?.height || innerHeight};}
   bounds(){return tooltipBounds(this.viewport(),this.host.getBoundingClientRect());}
-  move(point){const next=clampTooltip(point,this.bounds());this.host.style.left=`${next.left}px`;this.host.style.top=`${next.top}px`;}
+  move(point,bounds=this.bounds()){const next=clampTooltip(point,bounds);for(const[key,value]of [['left',next.left+'px'],['top',next.top+'px']])if(this.host.style[key]!==value)this.host.style[key]=value;}
   remember(){
     this.updatePositionControl();
     Promise.resolve(this.handlers.onPositionChange?.(this.placement)).catch(()=>this.status(siteText(this.site || {},'Position could not be saved. It will reset after reloading.')));
@@ -117,26 +158,27 @@ export class Tooltip {
     });menu.append(confirm);this.snoozeMenu=menu;return menu;
   }
   startPractice(result){
-    if(this.practice)return;this.practice={target:result.text};this.host.setAttribute('data-practicing','');
+    if(this.practice)return;const practice=this.practice={target:result.text},compare=createPracticeComparer(result.text);this.host.setAttribute('data-practicing','');
     const label=message=>siteText(this.site || {},message),panel=node('section',undefined,{class:'practice-panel','data-input-coach-ignore':'','aria-label':label('Sentence practice')}),heading=node('div',undefined,{class:'practice-heading'});
     const close=this.button('×',()=>this.closePractice());close.setAttribute('aria-label',label('Close practice'));heading.append(node('span',label('Try it yourself')),close);
     const target=node('div',undefined,{class:'practice-target'}),editor=node('div',undefined,{class:'practice-editor'}),mirror=node('div',undefined,{class:'practice-mirror','aria-hidden':'true'}),input=node('textarea',undefined,{'aria-label':label('Retype the suggested sentence'),maxlength:String(Math.max(6000,Math.min(22000,result.text.length+2000))),spellcheck:'false',autocomplete:'off',autocapitalize:'off','data-input-coach-ignore':'',placeholder:label('Retype the sentence here…')});
     const summary=node('div',undefined,{class:'practice-summary'}),feedback=node('p',undefined,{role:'status','aria-live':'polite'}),reset=this.button(label('Start again'),()=>{input.value='';update();input.focus({preventScroll:true});});summary.append(feedback,reset);
-    const render=(container,parts)=>{container.replaceChildren(...parts.map(part=>node(part.kind==='match'?'span':'mark',part.text,{class:'practice-'+part.kind})));};
+    const render=(container,parts)=>{let cursor=container.firstChild;for(const part of parts){const tag=part.kind==='match'?'SPAN':'MARK';let current=cursor;if(!current || current.nodeName!==tag){current=node(tag.toLowerCase());if(cursor)container.replaceChild(current,cursor);else container.append(current);}if(current.className!=='practice-'+part.kind)current.className='practice-'+part.kind;if(current.textContent!==part.text)current.textContent=part.text;cursor=current.nextSibling;}while(cursor){const next=cursor.nextSibling;cursor.remove();cursor=next;}};
     const sync=()=>{mirror.style.width=input.clientWidth+'px';mirror.style.height=input.clientHeight+'px';mirror.scrollTop=input.scrollTop;mirror.scrollLeft=input.scrollLeft;};
     let composing=false;
     const update=()=>{
       if(composing){mirror.textContent=input.value;sync();return;}
-      const diff=practiceDiff(result.text,input.value);render(target,diff.target);render(mirror,diff.input);mirror.append(document.createTextNode('\n'));
+      const diff=compare(input.value);render(target,diff.target);render(mirror,diff.input);mirror.append(document.createTextNode('\n'));
       feedback.textContent=!input.value?label('Type at your own pace.'):diff.complete?label(diff.minor?'Words match · only case or punctuation differs.':'Sentence matched.'):siteText(this.site || {},'{major} character changes · {minor} minor changes',{major:diff.major,minor:diff.minor});
       panel.dataset.complete=String(diff.complete);sync();
     };
-    input.addEventListener('input',update);input.addEventListener('scroll',sync);input.addEventListener('compositionstart',()=>{composing=true;});input.addEventListener('compositionend',()=>{composing=false;update();});
+    const queueUpdate=()=>{if(this.practiceFrame)return;this.practiceFrame=requestAnimationFrame(()=>{this.practiceFrame=0;if(this.practice===practice && this.host.isConnected)update();});};
+    input.addEventListener('input',queueUpdate);input.addEventListener('scroll',()=>{mirror.scrollTop=input.scrollTop;mirror.scrollLeft=input.scrollLeft;},{passive:true});input.addEventListener('compositionstart',()=>{composing=true;});input.addEventListener('compositionend',()=>{composing=false;queueUpdate();});
     editor.append(mirror,input);panel.append(heading,target,editor,summary,node('p',label('Red: character differences · Dotted: case, spacing or punctuation. Local practice only.'),{class:'practice-help'}));
-    this.practiceArea.append(panel);this.practice.input=input;this.practice.sync=sync;update();this.position(this.editor);input.focus({preventScroll:true});requestAnimationFrame(sync);
+    this.practiceArea.append(panel);this.practice.input=input;this.practice.sync=sync;update();this.position(this.editor);input.focus({preventScroll:true});this.requestPosition(this.editor);
   }
   closePractice(){
-    this.host.focus({preventScroll:true});this.practice=null;this.host.removeAttribute('data-practicing');this.practiceArea?.replaceChildren();this.flushQueued();this.shadow.querySelector('.practice-entry')?.focus({preventScroll:true});this.position(this.editor);
+    this.host.focus({preventScroll:true});cancelAnimationFrame(this.practiceFrame);this.practiceFrame=0;this.practice=null;this.host.removeAttribute('data-practicing');this.practiceArea?.replaceChildren();this.flushQueued();this.shadow.querySelector('.practice-entry')?.focus({preventScroll:true});this.position(this.editor);
   }
   button(label,callback,primary=false){const b=node('button',label,{type:'button'});if(primary)b.className='primary';b.addEventListener('click',callback);return b;}
   siteSettings(site){
@@ -196,6 +238,8 @@ export class Tooltip {
   }
   show(editor,view) {
     if((this.practice || this.snoozeOpen || this.pointerActive || this.editingSite()) && this.host.isConnected){this.queuedView=[editor,view];return;}
+    const progressPoint=this.progressHost?.isConnected && this.progressHost.style.display!=='none'?{left:parseFloat(this.progressHost.style.left),top:parseFloat(this.progressHost.style.top)}:null;
+    this.hideProgress();
     this.discardQueued();
     const previousPolicy=this.host.isConnected?this.shadow.querySelector('.site-policy'):null;if(previousPolicy)this.siteOpen=previousPolicy.open;
     const {mode='auto',result,error,busy,localAvailable=false,site,mtResult,pendingLLM,llmError,mtError}=view;
@@ -230,9 +274,11 @@ export class Tooltip {
     this.parallelArea=node('div',undefined,{class:'parallel-results'});card.append(this.parallelArea);this.updateParallel({mtResult,pendingLLM,llmError,mtError,site});
     if(site)card.append(this.siteSettings(site));
     this.note=node('div','',{class:'note',role:'status'});card.append(this.note);this.shadow.append(style,card);
+    if(progressPoint){style.textContent+=revealCSS;card.classList.add('from-progress');}
     if(!this.host.isConnected)document.documentElement.append(this.host);
     if(hadFocus)this.host.focus({preventScroll:true});
     this.position(editor);
+    if(progressPoint){const rect=this.host.getBoundingClientRect();card.style.transformOrigin=`${progressPoint.left-rect.left+12}px ${progressPoint.top-rect.top+12}px`;}
   }
   updateParallel({mtResult,pendingLLM,llmError,mtError,site}){
     if(!this.parallelArea)return;const area=this.parallelArea;area.replaceChildren();
@@ -263,17 +309,24 @@ export class Tooltip {
     row.append(this.button('Known',()=>save(true)),this.button('Save for review',()=>save(false)));box.append(row);this.vocabArea.replaceChildren(box);
   }
   status(text){if(this.note)this.note.textContent=text;}
+  requestPosition(editor){
+    this.editor=editor;if(this.positionFrame || !(this.host.isConnected || this.progressHost?.isConnected) || !editor?.isConnected)return;
+    this.positionFrame=requestAnimationFrame(()=>{this.positionFrame=0;this.positionProgress();if(this.host.isConnected){this.practice?.sync?.();this.position(this.editor);}});
+  }
   position(editor){
     this.editor=editor;
     if(!this.host.isConnected || !editor?.isConnected)return;
     const viewport=this.viewport(),padding=Math.min(12,viewport.width/2,viewport.height/2);
-    this.host.style.width=`${Math.min(TOOLTIP_SIZES[this.size],Math.max(1,viewport.width-2*padding))}px`;
-    this.host.style.maxHeight=`${Math.max(1,viewport.height-2*padding)}px`;this.host.style.overflowY='auto';
+    const styles={width:`${Math.min(TOOLTIP_SIZES[this.size],Math.max(1,viewport.width-2*padding))}px`,overflowY:'auto'};
+    if(this.placement || this.drag)styles.maxHeight=`${Math.max(1,viewport.height-2*padding)}px`;
+    for(const[key,value]of Object.entries(styles))if(this.host.style[key]!==value)this.host.style[key]=value;
     if(this.drag){this.move(this.host.getBoundingClientRect());return;}
-    const bounds=this.bounds();
-    if(this.placement){this.move(placedTooltip(this.placement,bounds));return;}
-    const rect=editor.getBoundingClientRect(),height=this.host.getBoundingClientRect().height;
-    const top=rect.bottom+8+height>viewport.top+viewport.height-padding?rect.top-height-8:rect.bottom+8;
-    this.move({left:rect.left,top});
+    const hostRect=this.host.getBoundingClientRect(),bounds=tooltipBounds(viewport,hostRect);
+    if(this.placement){this.move(placedTooltip(this.placement,bounds),bounds);return;}
+    const dock=safeTooltipDock(viewport,editor.getBoundingClientRect(),{width:hostRect.width,height:this.shadow.querySelector('.card')?.getBoundingClientRect().height || hostRect.height});
+    if(dock){
+      for(const[key,value]of [['width',dock.width+'px'],['maxHeight',dock.height+'px']])if(this.host.style[key]!==value)this.host.style[key]=value;
+      this.move(dock,tooltipBounds(viewport,dock));
+    }else this.move({left:viewport.left+padding,top:viewport.top+padding},bounds);
   }
 }

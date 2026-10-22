@@ -1,6 +1,6 @@
 export const han = /\p{Script=Han}/gu;
 export const englishWords = /[A-Za-z]+(?:['’-][A-Za-z]+)*/g;
-export const countChars = text => [...text].length;
+export function countChars(text){let count=0;for(let i=0;i<text.length;i++,count++){const code=text.charCodeAt(i),next=text.charCodeAt(i+1);if(code>=0xd800 && code<=0xdbff && next>=0xdc00 && next<=0xdfff)i++;}return count;}
 export const countEnglish = text => (text.match(englishWords) || []).length;
 export const countChinese = text => (text.match(han) || []).length;
 
@@ -35,9 +35,13 @@ export function siteAllowed(host, settings) {
 
 // Stable prefix/suffix diff: only transient editor snapshots use this. No text is persisted.
 export function insertedSpan(before, after) {
-  const a = [...before], b = [...after];
-  let left = 0, right = 0;
-  while (left < a.length && left < b.length && a[left] === b[left]) left++;
-  while (right < a.length-left && right < b.length-left && a[a.length-1-right] === b[b.length-1-right]) right++;
-  return { text: b.slice(left, b.length-right).join(''), before: a.slice(0,left).join(''), after: b.slice(b.length-right).join('') };
+  // Native prefix checks/slices avoid allocating two document-sized code-point arrays on every key.
+  const high=code=>code>=0xd800 && code<=0xdbff,low=code=>code>=0xdc00 && code<=0xdfff;
+  if(after.startsWith(before) && !(high(before.charCodeAt(before.length-1)) && low(after.charCodeAt(before.length))))return {text:after.slice(before.length),before,after:''};
+  let left=0,right=0;
+  while(left<before.length && left<after.length && before.charCodeAt(left)===after.charCodeAt(left))left++;
+  if(left && high(before.charCodeAt(left-1)) && (low(before.charCodeAt(left)) || low(after.charCodeAt(left))))left--;
+  while(right<before.length-left && right<after.length-left && before.charCodeAt(before.length-1-right)===after.charCodeAt(after.length-1-right))right++;
+  if(right && low(before.charCodeAt(before.length-right)) && (high(before.charCodeAt(before.length-right-1)) || high(after.charCodeAt(after.length-right-1))))right--;
+  return {text:after.slice(left,after.length-right),before:before.slice(0,left),after:after.slice(after.length-right)};
 }

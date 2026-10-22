@@ -1,5 +1,15 @@
 # Phase 0 — technical validation
 
+## Input performance and quiet-time feedback — 2026-10-22
+
+Reviewed per-key text statistics, Slate settled events, practice diff and tooltip layout. Removed document-sized code-point arrays and repeated full-prefix English scans; moved Unicode classification outside the diff matrix, cached target data and coalesced practice/position updates. Reference-based Unicode/randomized word-boundary tests preserve accounting semantics. Synthetic Chromium fixtures cover inactive editor-read suppression, paired Slate callbacks, scroll batching and deferred practice updates.
+
+Fixed regression budgets now fail `npm run check`: isolated warmed core medians, 4x CPU-throttled native/rich beforeinput/input latency (60k statistics and 5k active automatic-suggestion paths), zero synchronous rectangle reads in input listeners, bounded scroll geometry and batched practice rendering. Measurements and limits are saved in core JSON and browser attachments; CI retains both with test evidence. Detailed findings, before/after measurements, method and limitations are in performance-review.md.
+
+Final local check passed 100 functional Node tests, 1 core performance test and 53 Chromium scenarios. Active-ring input medians under 4x CPU slowdown were 2.2/2.5 ms for native/rich editors, with zero synchronous rectangle reads. The first-result reveal scales only a pointer-transparent decorative layer; card/button geometry stays stable, and pointer-down/late-result Apply protection passes. Synthetic lane gates make result-order tests independent of screenshot/CI speed.
+
+The progress ring is 24px, rendered after the input handler, animated by the browser and placed outside the active editor. Fixtures verify countdown, waiting, both MT/LLM arrival orders, first-result reveal, collapsed MT, continued editor focus, Escape/policy cancellation, viewport changes, zero-space hiding, frozen IME candidate progress and rejection of pre-composition late results. Screenshots use synthetic drafts only. Native OS IME, authenticated host-specific behavior, Edge and whole-page input-to-paint latency remain manual checks; extension-listener budgets do not measure provider latency or host rendering.
+
 ## Temporary pause, sentence practice and sponsored MoE model — 2026-10-21
 
 Unit checks cover fixed-hour/local-midnight pause deadlines, independent site/global recovery, expiry, sender-derived scope and processing/metrics/history gates. Browser checks cover the mini menu, delayed-result stability, reload persistence, two real MV3 hostnames, popup recovery and expiry. Practice checks cover autofocus, deletion/insertion/substitution, secondary case/punctuation/spacing, pending suffixes, Unicode and bounded long-input work. Browser tests verify in-text highlights, IME, focus retention, frozen MT while AI finishes, Escape/restart, no extra provider requests/counters, unchanged page drafts and bilingual narrow layouts. Attempts never enter history or storage.

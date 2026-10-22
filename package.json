@@ -6,7 +6,8 @@
   "description": "Consent-first translation, English practice, and local typing insights.",
   "scripts": {
     "build": "node scripts/build.mjs",
-    "test": "node --test tests/*.test.js",
+    "test": "node --test tests/*.test.js && npm run test:performance",
+    "test:performance": "node --test tests/performance/*.test.js",
     "test:browser": "playwright test",
     "check": "npm run test && npm run build && npm run test:browser",
     "package": "node scripts/package.mjs",

@@ -53,12 +53,14 @@ if (!globalThis.__inputCoach) {
       else tip.status('This editor did not accept the replacement. Use Copy instead.');
     }
   });
-  function invalidate(close=true){sequence++;clearTimeout(timer);tip.discardQueued();if(close)tip.close();}
+  function invalidate(close=true){sequence++;clearTimeout(timer);tip.discardQueued();if(close)tip.close();else tip.hideProgress();}
+  function pauseComposition(){sequence++;clearTimeout(timer);tip.close(true);tip.pauseProgress();}
   function count(delta){if(!settings?.analytics || !allowed())return;const day=dayKey();addMetrics(pending[day] ||= emptyMetrics(),delta);clearTimeout(flushTimer);flushTimer=setTimeout(flush,1500);}
   function flush(){const batch=pending;pending={};for(const[day,delta]of Object.entries(batch))send({type:'metric',day,delta}).catch(()=>{});}
-  function focus(editor){if(active!==editor){invalidate();active=editor;mode=settings?.mode;}if(allowed() && !snapshots.has(editor))snapshots.set(editor,readEditor(editor));}
+  function focus(editor){if(active!==editor){invalidate();active=editor;mode=settings?.mode;}if(settings?.analytics && allowed() && !snapshots.has(editor))snapshots.set(editor,readEditor(editor));}
   async function suggest(manual=false){
     clearTimeout(timer);
+    tip.hideProgress();
     if(changingSite || !settings?.enabled || !access() || snoozed() || !active?.isConnected || composing.has(active))return;
     if(!allowed()){if(manual && settings.siteMode==='blacklist')showSitePanel();return;}
     const editor=active, source=readEditor(editor);if(!source.trim() || source.length>6000)return;
@@ -71,6 +73,7 @@ if (!globalThis.__inputCoach) {
     // No empty loading card: both lanes start now and publish independently when usable text arrives.
     const pair=translationPair(source,settings.targetLanguage || 'en');
     const useMT=action.action!=='explain' && pair.source!==pair.target,useLLM=settings.llmEnabled || action.needsLLM;
+    if(useMT || useLLM)tip.queueProgress(editor,{waiting:true,site:currentSite()});
     const results={},errors={},done={mt:!useMT,llm:!useLLM};let displayed=null,counted=false;
     const publish=async()=>{
       if(!valid())return;
@@ -109,33 +112,42 @@ if (!globalThis.__inputCoach) {
     await Promise.allSettled(jobs);
   }
   function schedule(text){if(!settings?.autoSuggest || !settings.enabled || !allowed())return;
-    if(text.trim().length<2)return;
+    if(text.trim().length<2 || text.length>6000)return;
+    const action=routeAction(text,mode || settings.mode,settings.llmEnabled,settings.targetLanguage || 'en');if(action.action==='none')return;
+    if(action.action==='translate' && !settings.llmEnabled && action.language===(settings.targetLanguage==='zh'?'chinese':'english'))return;
     // Incomplete sentences get a little more quiet time; never request every keypress.
     const delay=settings.debounce+(/[.!?。！？\n]\s*$/.test(text)?0:600);
     timer=setTimeout(()=>suggest(false),delay);
+    tip.queueProgress(active,{duration:delay,action:action.action,site:currentSite()});
   }
   function input(e,settled=false,candidate){
     const editor=candidate || editorFor(e.composedPath()[0]);if(!editor || applying)return;
+    if(settings && !settings.analytics && (!settings.enabled || !settings.autoSuggest)){invalidate();return;}
+    if(composing.has(editor) || e.isComposing){
+      if(!allowed()){invalidate();return;}focus(editor);pauseComposition();const composition=compositionStart.get(editor);if(composition && e.isTrusted)composition.trustedInput=true;return;
+    }
     if(!settled && editor.matches('[data-slate-editor]')){invalidate();setTimeout(()=>input(e,true,editor),0);return;}
     if(!allowed()){invalidate();return;}
-    focus(editor);invalidate();
-    if(composing.has(editor) || e.isComposing){const composition=compositionStart.get(editor);if(composition && e.isTrusted)composition.trustedInput=true;return;}
+    focus(editor);
     const before=snapshots.get(editor) ?? '',after=readEditor(editor);
     if(editor.matches('[data-slate-editor]') && before===after)return;
-    if(e.isTrusted && before!==after)count(typingDelta(before,after,e.inputType,e.data));
+    // Read before removing the card: removing UI first dirties layout and makes innerText flush it.
+    // An unchanged deferred Slate event must not cancel the preceding event's suggestion timer.
+    invalidate();
+    if(settings.analytics && e.isTrusted && before!==after)count(typingDelta(before,after,e.inputType,e.data));
     snapshots.set(editor,after);
     if(e.isTrusted)schedule(after);
   }
   document.addEventListener('focusin',e=>{const editor=editorFor(e.composedPath()[0]);if(editor)focus(editor);},true);
-  document.addEventListener('beforeinput',e=>{const editor=editorFor(e.composedPath()[0]);if(allowed() && editor && !composing.has(editor) && !applying){focus(editor);snapshots.set(editor,readEditor(editor));
+  document.addEventListener('beforeinput',e=>{const editor=editorFor(e.composedPath()[0]);if(allowed() && editor && !composing.has(editor) && !applying){focus(editor);if(settings.analytics || settings.enabled && settings.autoSuggest && editor.matches('[data-slate-editor]'))snapshots.set(editor,readEditor(editor));
     // Slate may prevent native insertion and update its model without dispatching input.
-    if(editor.matches('[data-slate-editor]')){invalidate();setTimeout(()=>input(e,true,editor),0);}
+    if(editor.matches('[data-slate-editor]') && (settings.analytics || settings.enabled && settings.autoSuggest)){invalidate();setTimeout(()=>input(e,true,editor),0);}
   }},true);
   document.addEventListener('input',input,true);
   function finishComposition(editor,composition){
     if(compositionStart.get(editor)!==composition)return;
-    composing.delete(editor);compositionStart.delete(editor);const after=readEditor(editor);
-    if(allowed() && after!==composition.before && (composition.endTrusted || composition.trustedStart && composition.trustedInput)){
+    composing.delete(editor);compositionStart.delete(editor);if(!settings?.analytics && (!settings?.enabled || !settings?.autoSuggest))return;const after=readEditor(editor);
+    if(settings?.analytics && allowed() && after!==composition.before && (composition.endTrusted || composition.trustedStart && composition.trustedInput)){
       count(typingDelta(composition.before,after,'insertCompositionText',composition.data || null));
     }
     snapshots.set(editor,after);if(allowed())schedule(after);
@@ -143,7 +155,7 @@ if (!globalThis.__inputCoach) {
   document.addEventListener('compositionstart',e=>{
     const editor=editorFor(e.composedPath()[0]);if(!editor || !allowed())return;
     const previous=compositionStart.get(editor);if(previous?.ended)finishComposition(editor,previous);
-    focus(editor);invalidate();composing.add(editor);compositionStart.set(editor,{before:readEditor(editor),trustedStart:e.isTrusted,trustedInput:false});
+    focus(editor);pauseComposition();composing.add(editor);compositionStart.set(editor,{before:settings.analytics?readEditor(editor):'',trustedStart:e.isTrusted,trustedInput:false});
   },true);
   document.addEventListener('compositionend',e=>{
     const editor=editorFor(e.composedPath()[0]);if(!editor)return;
@@ -162,15 +174,15 @@ if (!globalThis.__inputCoach) {
     if(e.key==='Escape')invalidate();
     if(e.altKey && e.shiftKey && e.code==='KeyE' && !e.isComposing){e.preventDefault();const editor=editorFor(e.composedPath()[0]);if(editor)focus(editor);suggest(true);}
   },true);
-  window.addEventListener('scroll',()=>tip.position(active),true);window.addEventListener('resize',()=>tip.position(active));
-  window.visualViewport?.addEventListener('resize',()=>tip.position(active));window.visualViewport?.addEventListener('scroll',()=>tip.position(active));
+  window.addEventListener('scroll',event=>{if((tip.host.isConnected || tip.progressHost?.isConnected) && !event.composedPath().includes(tip.host))tip.requestPosition(active);},{capture:true,passive:true});window.addEventListener('resize',()=>tip.requestPosition(active),{passive:true});
+  window.visualViewport?.addEventListener('resize',()=>tip.requestPosition(active),{passive:true});window.visualViewport?.addEventListener('scroll',()=>tip.requestPosition(active),{passive:true});
   window.addEventListener('pagehide',flush);document.addEventListener('visibilitychange',()=>{if(document.hidden)flush();});
   function acceptSettings(next){
     clearTimeout(snoozeTimer);if(next.snoozeUntil>Date.now())snoozeTimer=setTimeout(()=>refreshSettings(),Math.min(2147483647,next.snoozeUntil-Date.now()+40));
     if(JSON.stringify(settings)===JSON.stringify(next))return;
     if(settings && JSON.stringify({...settings,tooltipSize:undefined,historyLimit:undefined,historyGeneration:undefined})===JSON.stringify({...next,tooltipSize:undefined,historyLimit:undefined,historyGeneration:undefined})){settings=next;tip.setSize(next.tooltipSize);return;}
     const visible=tip.host.isConnected,sitePanel=tip.isSitePanel || tip.siteOpen,focused=document.activeElement===tip.host;
-    if(settings?.snoozeUntil!==next.snoozeUntil){snapshots=new WeakMap();if(active)snapshots.set(active,readEditor(active));pending={};}
+    if(settings?.snoozeUntil!==next.snoozeUntil || settings?.analytics!==next.analytics){snapshots=new WeakMap();if(active)snapshots.set(active,readEditor(active));pending={};}
     invalidate();settings=next;mode=settings.mode;tip.setSize(next.tooltipSize);
     if(!allowed())pending={};
     if(visible && settings.enabled && access() && !snoozed() && (sitePanel || (settings.siteMode==='blacklist' && !allowed())))showSitePanel(focused);

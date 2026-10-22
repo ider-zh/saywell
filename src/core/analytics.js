@@ -7,15 +7,19 @@ export function dayKey(date = new Date()) {
 export function typingDelta(before, after, inputType, data) {
   const d = emptyMetrics();
   if (inputType?.startsWith('delete') || /history|format/i.test(inputType || '')) return d;
+  // Autocomplete/replacement is not provably independent writing.
+  if (/replacement/i.test(inputType || '')) return d;
+  if (/paste|drop/i.test(inputType || '') && typeof data==='string'){d.pasted=countChars(data);return d;}
   const diff = insertedSpan(before, after);
   const added = typeof data === 'string' ? data : diff.text;
   if (!added) return d;
   if (/paste|drop/i.test(inputType || '')) { d.pasted = countChars(added); return d; }
-  // Autocomplete/replacement is not provably independent writing.
-  if (/replacement/i.test(inputType || '')) return d;
   d.typed = countChars(added); d.chinese = countChinese(added);
   // Count new word starts; a word built one key at a time is counted once.
-  d.english = Math.max(0, countEnglish(diff.before + added) - countEnglish(diff.before));
+  // This ASCII word grammar depends only on the last letter and an optional apostrophe/hyphen.
+  // Earlier words cancel in the subtraction; never rescan the whole document prefix twice.
+  const boundary=diff.before.slice(-2);
+  d.english = Math.max(0, countEnglish(boundary + added) - countEnglish(boundary));
   return d;
 }
 export function addMetrics(target, delta) {

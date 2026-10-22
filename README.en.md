@@ -105,6 +105,8 @@ npm run package
 
 `npm run check` runs Node tests, builds the extension, then runs Chromium browser tests. Tests use synthetic text and localhost API fixtures. Output is `dist/`, with an installation archive at `release/saywell-VERSION.zip`. Versions in `package.json` and `manifest.json` must match.
 
+The check also enforces fixed input, practice-diff, scroll and active-countdown performance budgets. Run `npm run test:performance` for isolated core timing; CI retains measurement JSON alongside browser evidence. See [performance findings and budgets](docs/performance-review.md) for methods and limits.
+
 | Command | Purpose |
 | --- | --- |
 | `npm run build` | Bundle the extension and generate local logo assets |
