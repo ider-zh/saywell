@@ -1,5 +1,9 @@
 // English source messages are stable keys. Provider/user content is never translated here.
 export default {
+  'Private storage is full. Remove saved vocabulary or history before saving more.':'本地私密存储已满，请清理部分词汇或历史记录后重试。',
+  'Private data is invalid.':'私密数据无效。',
+  'Wait for API keys to finish clearing before saving preferences.':'请等待 API 密钥清理完成后再保存设置。',
+  'Settings changed in another window. Reload Settings and try again.':'设置已在其他窗口中更改，请重新加载设置页后重试。',
   'Browser restart or extension reload, update or disable clears session-only records and locks the vault.':'浏览器重启，或扩展重新加载、更新、停用时，会清除仅会话记录并锁定保险库。',
   'Vault unavailable. You can delete private data to start again.':'保险库不可用，可删除私有数据后重新开始。',
   'Vault locked · Unlock in Settings':'保险库已锁定 · 去设置解锁',

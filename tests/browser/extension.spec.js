@@ -78,13 +78,13 @@ test('quiet-time progress stays outside the editor and reveals only the first us
 });
 
 test('IME candidates freeze progress, invalidate in-flight results and restart only after commit',async()=>{
-  const p=await pageWithCoach();await p.evaluate(()=>{window.__coachSetSettings({debounce:650});window.__coachDelay=900;});
+  const p=await pageWithCoach(),cdp=await context.newCDPSession(p);await p.evaluate(()=>{window.__coachSetSettings({debounce:650});window.__coachDelay=900;});
   const draft=p.getByRole('textbox',{name:'Draft',exact:true}),ring=p.locator('saywell-progress'),tip=p.locator('input-coach-tip');await draft.fill('输入法暂停测试。');await expect(ring).toHaveAttribute('data-phase','countdown');
-  await draft.evaluate(input=>{input.dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true,composed:true}));input.value+='pin';input.dispatchEvent(new InputEvent('input',{bubbles:true,composed:true,isComposing:true,data:'pin',inputType:'insertCompositionText'}));});
+  await cdp.send('Input.imeSetComposition',{text:'pin',selectionStart:3,selectionEnd:3});
   await expect(ring).toHaveAttribute('data-paused','');await p.waitForTimeout(80);const frozen=await ring.locator('.progress').evaluate(circle=>({transform:getComputedStyle(circle).transform,arc:getComputedStyle(circle).strokeDasharray}));await p.waitForTimeout(750);expect(await ring.locator('.progress').evaluate(circle=>({transform:getComputedStyle(circle).transform,arc:getComputedStyle(circle).strokeDasharray}))).toEqual(frozen);expect(await p.evaluate(()=>window.__coachRequests.length)).toBe(0);await expect(tip).toHaveCount(0);await p.screenshot({path:'test-results/progress-ime-paused.png'});
-  const commit=()=>draft.evaluate(input=>{input.value='输入法确认上屏。';input.dispatchEvent(new CompositionEvent('compositionend',{bubbles:true,composed:true,data:'上屏'}));});await commit();await expect(ring).not.toHaveAttribute('data-paused');await expect(ring).toHaveAttribute('data-phase','waiting');
-  await draft.evaluate(input=>input.dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true,composed:true})));await expect(ring).toHaveAttribute('data-paused','');await p.waitForTimeout(1000);await expect(tip).toHaveCount(0);expect(await p.evaluate(()=>window.__coachRequests.length)).toBe(1);
-  await commit();await expect(ring).toHaveAttribute('data-phase','countdown');await expect(tip.locator('.suggestion')).toHaveText('Hello, world.');await expect(ring).toHaveCount(0);await p.close();
+  const commit=()=>cdp.send('Input.insertText',{text:'上屏。'});await commit();await expect(ring).not.toHaveAttribute('data-paused');await expect(ring).toHaveAttribute('data-phase','waiting');
+  await cdp.send('Input.imeSetComposition',{text:'pin',selectionStart:3,selectionEnd:3});await expect(ring).toHaveAttribute('data-paused','');await p.waitForTimeout(1000);await expect(tip).toHaveCount(0);expect(await p.evaluate(()=>window.__coachRequests.length)).toBe(1);
+  await commit();await expect(ring).toHaveAttribute('data-phase','countdown');await expect(tip.locator('.suggestion')).toHaveText('Hello, world.');await expect(ring).toHaveCount(0);await cdp.detach();await p.close();
 });
 
 test('progress cancels on edits, Escape and policy changes and avoids full-screen editors',async()=>{
@@ -187,11 +187,24 @@ test('a delayed settings refresh preserves current queued input without reviving
   await draft.fill('配置刷新期间输入的合成句子。');await p.evaluate(()=>window.__coachSetSettings({style:'professional'}));await expect(tip.locator('.suggestion')).toHaveText('Hello, world.');expect(await p.evaluate(()=>window.__coachRequests.length)).toBe(1);
   await draft.fill('已经取消的合成句子。');await draft.press('Escape');await p.evaluate(()=>window.__coachSetSettings({style:'natural'}));await p.waitForTimeout(650);expect(await p.evaluate(()=>window.__coachRequests.length)).toBe(1);await expect(tip).toHaveCount(0);await p.close();
 });
+test('gated policy refresh retains a mode-none draft and waits before processing new input',async()=>{
+  const p=await pageWithCoach(),draft=p.getByRole('textbox',{name:'Draft',exact:true});
+  const gate=async patch=>p.evaluate(patch=>{const original=chrome.runtime.sendMessage;chrome.runtime.sendMessage=async message=>{const reply=await original(message);if(message.type==='public-settings')await new Promise(resolve=>window.__releasePolicy=()=>{chrome.runtime.sendMessage=original;resolve();});return message.type==='public-settings'?{...reply,data:{...reply.data,...patch}}:reply;};window.__coachRefreshSettings();},patch);
+  try{
+    await draft.fill('A synthetic sentence before enabling the LLM.');await gate({llmEnabled:true});await p.waitForTimeout(650);expect(await p.evaluate(()=>window.__coachRequests.length)).toBe(0);
+    await p.evaluate(()=>window.__releasePolicy());await expect(p.locator('input-coach-tip .suggestion')).toHaveText('We should streamline this process.');
+    await draft.fill('A queued sentence whose timer expires during an unchanged refresh.');await gate({llmEnabled:true});await p.waitForTimeout(650);expect(await p.evaluate(()=>window.__coachRequests.length)).toBe(1);
+    await p.evaluate(()=>window.__releasePolicy());await expect.poll(()=>p.evaluate(()=>window.__coachRequests.length)).toBe(2);
+    await gate({llmEnabled:true});await draft.fill('A new synthetic sentence during an unchanged refresh.');await p.waitForTimeout(650);expect(await p.evaluate(()=>window.__coachRequests.length)).toBe(2);
+    await p.evaluate(()=>window.__releasePolicy());await expect.poll(()=>p.evaluate(()=>window.__coachRequests.length)).toBe(3);
+    await gate({llmEnabled:true});await draft.fill('Escape cancels this synthetic draft.');await draft.press('Escape');await p.evaluate(()=>window.__releasePolicy());await p.waitForTimeout(650);expect(await p.evaluate(()=>window.__coachRequests.length)).toBe(3);
+  }finally{await p.close();}
+});
 test('initial policy lookup preserves committed input but waits for IME and respects denied site access',async()=>{
   const gate=()=>{const send=chrome.runtime.sendMessage;chrome.runtime.sendMessage=async message=>{const reply=await send(message);if(message.type==='public-settings')await new Promise(resolve=>window.__releaseInitialPolicy=()=>resolve());return reply;};};
   const p=await pageWithCoach(gate),draft=p.getByRole('textbox',{name:'Draft',exact:true});
   await draft.fill('初次加载期间输入。');expect(await p.evaluate(()=>window.__coachRequests.length)).toBe(0);await p.evaluate(()=>window.__releaseInitialPolicy());await expect(p.locator('input-coach-tip .suggestion')).toHaveText('Hello, world.');await p.close();
-  const ime=await pageWithCoach(gate),imeDraft=ime.getByRole('textbox',{name:'Draft',exact:true});await imeDraft.fill('输入法之前。');await imeDraft.dispatchEvent('compositionstart');await ime.evaluate(()=>window.__releaseInitialPolicy());await ime.waitForTimeout(650);expect(await ime.evaluate(()=>window.__coachRequests.length)).toBe(0);await imeDraft.dispatchEvent('compositionend',{data:''});await expect(ime.locator('input-coach-tip .suggestion')).toHaveText('Hello, world.');await ime.close();
+  const ime=await pageWithCoach(gate),imeDraft=ime.getByRole('textbox',{name:'Draft',exact:true}),cdp=await context.newCDPSession(ime);await imeDraft.fill('输入法之前。');await cdp.send('Input.imeSetComposition',{text:'pin',selectionStart:3,selectionEnd:3});await ime.evaluate(()=>window.__releaseInitialPolicy());await ime.waitForTimeout(650);expect(await ime.evaluate(()=>window.__coachRequests.length)).toBe(0);await cdp.send('Input.insertText',{text:'上屏。'});await expect(ime.locator('input-coach-tip .suggestion')).toHaveText('Hello, world.');await cdp.detach();await ime.close();
   const denied=await pageWithCoach(()=>{window.__coachSetSettings({siteOrigins:[]});const send=chrome.runtime.sendMessage;chrome.runtime.sendMessage=async message=>{const reply=await send(message);if(message.type==='public-settings')await new Promise(resolve=>window.__releaseInitialPolicy=resolve);return reply;};});await denied.getByRole('textbox',{name:'Draft',exact:true}).fill('没有网站权限。');await denied.evaluate(()=>window.__releaseInitialPolicy());await denied.waitForTimeout(650);expect(await denied.evaluate(()=>window.__coachRequests.length)).toBe(0);await denied.close();
 });
 
@@ -406,13 +419,45 @@ test('Slate beforeinput model updates trigger suggestions when the host prevents
   expect(await p.evaluate(()=>window.__coachRequests.map(r=>r.text))).toEqual(['你好，世界。']);await p.close();
 });
 test('IME composition makes no requests until commit; editing invalidates stale replies',async()=>{
-  const p=await pageWithCoach();const draft=p.getByRole('textbox',{name:'Draft',exact:true});await draft.focus();
-  await draft.evaluate(e=>{e.dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true}));e.value='你好';e.dispatchEvent(new InputEvent('input',{bubbles:true,isComposing:true,data:'你',inputType:'insertCompositionText'}));});
+  const p=await pageWithCoach(),cdp=await context.newCDPSession(p);const draft=p.getByRole('textbox',{name:'Draft',exact:true});await draft.focus();
+  await cdp.send('Input.imeSetComposition',{text:'你好',selectionStart:2,selectionEnd:2});
   await p.waitForTimeout(1200);expect(await p.evaluate(()=>window.__coachRequests.length)).toBe(0);
-  await draft.evaluate(e=>{e.dispatchEvent(new CompositionEvent('compositionend',{bubbles:true,data:'你好'}));});
+  await cdp.send('Input.insertText',{text:'你好'});
   await expect(p.locator('input-coach-tip').getByText('Hello, world.',{exact:true})).toBeVisible();
   await p.evaluate(()=>{window.__coachDelay=700;});await draft.fill('新的句子。');await p.waitForFunction(()=>window.__coachRequests.length===2);await draft.fill('Changed before reply');
-  await p.waitForTimeout(800);await expect(p.locator('input-coach-tip')).toHaveCount(0);await p.close();
+  await p.waitForTimeout(800);await expect(p.locator('input-coach-tip')).toHaveCount(0);await cdp.detach();await p.close();
+});
+test('automatic prefilter skips data without progress or requests and manual translation stays available',async()=>{
+  const p=await pageWithCoach(),draft=p.getByRole('textbox',{name:'Draft',exact:true});await p.evaluate(()=>window.__coachSetSettings({debounce:100,mode:'translate',targetLanguage:'zh',llmEnabled:true}));
+  for(const text of ['https://example.com/path?q=123','user@example.com','$1,234.50','550e8400-e29b-41d4-a716-446655440000','ID123']){
+    await draft.fill(text);await p.waitForTimeout(250);await expect(p.locator('saywell-progress')).toHaveCount(0);await p.waitForTimeout(550);
+    expect(await p.evaluate(()=>window.__coachRequests.length)).toBe(0);await expect(p.locator('input-coach-tip')).toHaveCount(0);
+  }
+  await draft.press('Alt+Shift+E');await expect(p.locator('input-coach-tip .suggestion')).toHaveText('We should streamline this process.');expect(await p.evaluate(()=>window.__coachRequests.map(request=>request.text))).toEqual(['ID123','ID123']);
+  await draft.fill('Hello 123');await expect(p.locator('input-coach-tip .suggestion')).toHaveText('We should streamline this process.');expect(await p.evaluate(()=>window.__coachRequests.map(request=>request.text))).toEqual(['ID123','ID123','Hello 123','Hello 123']);await p.close();
+});
+test('orphan and fully synthetic IME events cannot trigger automatic provider requests',async()=>{
+  const p=await pageWithCoach(),draft=p.getByRole('textbox',{name:'Draft',exact:true});await p.evaluate(()=>window.__coachSetSettings({debounce:100}));await draft.focus();
+  for(const full of [false,true]){
+    await draft.evaluate((editor,full)=>{
+      if(full)editor.dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true,composed:true}));
+      editor.value='网页脚本写入的合成文本。';
+      if(full)editor.dispatchEvent(new InputEvent('input',{bubbles:true,composed:true,isComposing:true,inputType:'insertCompositionText',data:'文本'}));
+      editor.dispatchEvent(new CompositionEvent('compositionend',{bubbles:true,composed:true,data:'文本'}));
+    },full);
+    await p.waitForTimeout(800);expect(await p.evaluate(()=>window.__coachRequests.length)).toBe(0);await expect(p.locator('input-coach-tip')).toHaveCount(0);
+  }
+  await draft.evaluate(editor=>editor.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,composed:true,altKey:true,shiftKey:true,code:'KeyE',key:'E'})));
+  await p.waitForTimeout(300);expect(await p.evaluate(()=>window.__coachRequests.length)).toBe(0);
+  // User-triggered manual translation remains available for programmatically populated drafts.
+  await draft.press('Alt+Shift+E');await expect(p.locator('input-coach-tip .suggestion')).toHaveText('Hello, world.');await p.close();
+});
+test('trusted IME start and input permit an untrusted commit event',async()=>{
+  const p=await pageWithCoach(()=>document.addEventListener('compositionend',event=>{
+    if(!event.isTrusted)return;event.stopImmediatePropagation();event.target.dispatchEvent(new CompositionEvent('compositionend',{bubbles:true,composed:true,data:event.data}));
+  },true)),cdp=await context.newCDPSession(p),draft=p.getByRole('textbox',{name:'Draft',exact:true});await draft.focus();
+  await cdp.send('Input.imeSetComposition',{text:'nihao',selectionStart:5,selectionEnd:5});await cdp.send('Input.insertText',{text:'你好。'});
+  await expect(p.locator('input-coach-tip .suggestion')).toHaveText('Hello, world.');expect(await p.evaluate(()=>window.__coachRequests.length)).toBe(1);await cdp.detach();await p.close();
 });
 test('trusted IME composition counts committed Chinese once and excludes cancelled candidates',async()=>{
   const p=await pageWithCoach(),cdp=await context.newCDPSession(p);

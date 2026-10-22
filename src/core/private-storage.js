@@ -3,12 +3,31 @@
 const FIELDS=['keys','translationHistory','vocabulary','analytics'];
 const META='saywellVault',DATA='saywellPrivateData',SESSION='saywellPrivateSession';
 const ITERATIONS=600000,encoder=new TextEncoder(),decoder=new TextDecoder();
+// Chrome local/session storage allows 10 MiB. Keep one MiB available for other
+// extension settings, metadata and session credentials; include base64 overhead.
+export const PRIVATE_STORAGE_BYTES=9*1024*1024;
+const ENVELOPE_BYTES=10*1024*1024;
+const ENVELOPE_OVERHEAD=JSON.stringify({v:1,iv:'A'.repeat(16),ciphertext:''}).length;
 const bytes=n=>crypto.getRandomValues(new Uint8Array(n));
-const b64=value=>{let text='';for(const byte of value)text+=String.fromCharCode(byte);return btoa(text);};
-const un64=(value,max=8*1024*1024)=>{if(typeof value!=='string' || value.length>max || !/^[A-Za-z0-9+/]*={0,2}$/.test(value))throw new Error('Encrypted data is invalid.');return Uint8Array.from(atob(value),c=>c.charCodeAt(0));};
+const b64=value=>{
+  const chunks=[];
+  // Fixed chunks avoid millions of transient concatenations and oversized calls.
+  for(let start=0;start<value.length;start+=32768)chunks.push(String.fromCharCode.apply(null,value.subarray(start,start+32768)));
+  return btoa(chunks.join(''));
+};
+const un64=(value,max=ENVELOPE_BYTES)=>{if(typeof value!=='string' || value.length>max || !/^[A-Za-z0-9+/]*={0,2}$/.test(value))throw new Error('Encrypted data is invalid.');return Uint8Array.from(atob(value),c=>c.charCodeAt(0));};
 const aes=raw=>crypto.subtle.importKey('raw',un64(raw,64),'AES-GCM',false,['encrypt','decrypt']);
-async function seal(key,value,purpose){
-  const iv=bytes(12),data=encoder.encode(JSON.stringify(value));
+const encode=value=>{const json=JSON.stringify(value);if(json===undefined)throw new Error('Private data is invalid.');return encoder.encode(json);};
+function checkBudget(records,encoded,remove=[]){
+  const sizes=new Map(Object.entries(records).map(([field,value])=>[field,encode(value).length]));
+  for(const[field,data]of Object.entries(encoded))sizes.set(field,ENVELOPE_OVERHEAD+4*Math.ceil((data.length+16)/3));
+  for(const field of remove)sizes.delete(field);
+  let total=2;for(const[field,size]of sizes)total+=encode(field).length+1+size;
+  total+=Math.max(0,sizes.size-1);
+  if(total>PRIVATE_STORAGE_BYTES)throw new Error('Private storage is full. Remove saved vocabulary or history before saving more.');
+}
+async function seal(key,value,purpose,data=encode(value)){
+  const iv=bytes(12);
   return {v:1,iv:b64(iv),ciphertext:b64(new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv,additionalData:encoder.encode(purpose)},key,data)))};
 }
 async function open(key,envelope,purpose){
@@ -33,15 +52,20 @@ export function createPrivateStorage(disk,memory){
     if(!meta && !session && create){session={id:crypto.randomUUID(),key:b64(bytes(32)),records:{}};await memory.set({[SESSION]:session});}
     return {meta,session,key:session?await aes(session.key):null};
   }
-  async function migrate(){
+  async function migrate(beforeMigration=()=>{}){
     const legacy=await disk.get(FIELDS);if(!Object.keys(legacy).length)return;
-    const {meta,session,key}=await context();if(!key)return; // Preserve legacy fields until an explicit unlock can migrate them.
-    const records=meta?(await disk.get(DATA))[DATA] || {}:{...session.records};
+    const current=await context(false),{meta}=current;if(meta && !current.key)return; // Preserve legacy fields until an explicit unlock can migrate them.
+    const records=meta?(await disk.get(DATA))[DATA] || {}:{...current.session?.records};
+    const encoded=Object.fromEntries(FIELDS.filter(field=>legacy[field]!==undefined && (field!=='keys' || meta)).map(field=>[field,encode(legacy[field])]));
+    checkBudget(records,encoded);
+    beforeMigration(records,encoded);
+    const session=current.session || {id:crypto.randomUUID(),key:b64(bytes(32)),records:{}},key=current.key || await aes(session.key);
+    let migratedKeys;
     for(const field of FIELDS)if(legacy[field]!==undefined){
-      if(field==='keys' && !meta){const current=(await memory.get('keys')).keys || {};await memory.set({keys:{...legacy.keys,...current}});}
-      else records[field]=await seal(key,legacy[field],purpose(session.id,field));
+      if(field==='keys' && !meta){const existing=(await memory.get('keys')).keys || {};migratedKeys={...legacy.keys,...existing};}
+      else records[field]=await seal(key,legacy[field],purpose(session.id,field),encoded[field]);
     }
-    if(meta)await disk.set({[DATA]:records});else await memory.set({[SESSION]:{...session,records}});
+    if(meta)await disk.set({[DATA]:records});else await memory.set({[SESSION]:{...session,records},...(migratedKeys?{keys:migratedKeys}:{})});
     // Remove legacy plaintext only after its replacement was successfully written.
     await disk.remove(FIELDS);await memory.set({privateMigrationNotice:true});
     if(!meta && legacy.keys){
@@ -59,12 +83,17 @@ export function createPrivateStorage(disk,memory){
     return result;
   }
   async function write(values,remove=[]){
-    await migrate();const privateFields=Object.keys(values).filter(field=>FIELDS.includes(field)),privateRemove=remove.filter(field=>FIELDS.includes(field));
+    const privateFields=Object.keys(values).filter(field=>FIELDS.includes(field)),privateRemove=remove.filter(field=>FIELDS.includes(field));
+    const encoded=Object.fromEntries(privateFields.map(field=>[field,encode(values[field])]));
+    // Reject oversized values before migration or creating a browser session key.
+    checkBudget({},encoded,privateRemove);await migrate((records,legacy)=>checkBudget(records,{...legacy,...encoded},privateRemove));
     if(privateFields.length || privateRemove.length){
-      const {meta,session,key}=await context();if(!key)throw new Error('Unlock the vault before changing private data.');
+      const current=await context(false),{meta}=current;if(meta && !current.key)throw new Error('Unlock the vault before changing private data.');
       if(!meta && values.keys && Object.values(values.keys).some(Boolean))throw new Error('Create and unlock a vault before remembering API keys.');
-      const records={...(meta?(await disk.get(DATA))[DATA]:session.records)};
-      for(const field of privateFields)records[field]=await seal(key,values[field],purpose(session.id,field));
+      const records={...(meta?(await disk.get(DATA))[DATA]:current.session?.records)};
+      checkBudget(records,encoded,privateRemove);
+      const session=current.session || {id:crypto.randomUUID(),key:b64(bytes(32)),records:{}},key=current.key || await aes(session.key);
+      for(const field of privateFields)records[field]=await seal(key,values[field],purpose(session.id,field),encoded[field]);
       for(const field of privateRemove)delete records[field];
       if(meta)await disk.set({[DATA]:records});else await memory.set({[SESSION]:{...session,records}});
     }

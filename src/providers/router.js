@@ -20,6 +20,9 @@ export class BasicRouter {
       if (h.blocked || h.until > this.now()) { errors.push(`${p.name}: ${h.blocked ? 'check configuration and test in Settings' : 'cooling down'}`);attempts.push({id:p.id,engine:p.name,status:h.blocked?'auth':'cooldown'}); continue; }
       try {
         if (!await p.available(config,pair)) throw new ProviderError('unavailable',`${p.name} is not available for ${pair.source==='zh'?'Chinese':'English'} → ${pair.target==='zh'?'Chinese':'English'}.`);
+        // Availability checks may await a network request. Recheck permission and
+        // consent after that wait, before sending any source text.
+        if (!await authorized(config.endpoint,p.id)) {attempts.push({id:p.id,engine:p.name,status:'permission'});continue;}
         const value=cleanResult(await p.translate(text,config,pair,()=>authorized(config.endpoint,p.id)),text,0);
         this.health[p.id]={failures:0};
         attempts.push({id:p.id,engine:p.name,status:'success'});

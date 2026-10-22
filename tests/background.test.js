@@ -3,7 +3,7 @@ import {mergeSettings,llmConfig} from '../src/core/settings.js';
 import {LLM_PROVIDERS} from '../src/core/llm-providers.js';
 import {createPrivateStorage} from '../src/core/private-storage.js';
 import {exportConfigBackup} from '../src/core/config-backup.js';
-const stores={local:{},session:{}},permissions=new Set(),network=[];let listener,bingPageHook;
+const stores={local:{},session:{}},permissions=new Set(),network=[];let listener,bingPageHook,libreLanguagesHook,permissionHook;
 const event=()=>({listeners:[],addListener(fn){this.listeners.push(fn);}});
 const area=name=>({
   setAccessLevel:async({accessLevel})=>{assert.equal(accessLevel,'TRUSTED_CONTEXTS');},
@@ -14,6 +14,8 @@ const area=name=>({
 globalThis.chrome={storage:{local:area('local'),session:area('session'),onChanged:event()},permissions:{contains:async({origins})=>origins.every(p=>permissions.has(p)),onRemoved:event()},scripting:{getRegisteredContentScripts:async()=>[],registerContentScripts:async()=>{},unregisterContentScripts:async()=>{}},runtime:{getURL:p=>'chrome-extension://unit/'+p,onMessage:{addListener:fn=>{listener=fn;}},onInstalled:event(),onStartup:event(),openOptionsPage:async()=>{}},tabs:{query:async()=>[],get:async id=>({id,url:id===2?'https://chatgpt.com/':'https://ungranted.example/'}),sendMessage:async()=>{}},commands:{onCommand:event()}};
 globalThis.fetch=async(url,opts)=>{
   network.push({url,opts});
+  if(new URL(url).pathname==='/languages'){await libreLanguagesHook?.();return new Response(JSON.stringify([{code:'zh',targets:['en']}]));}
+  if(new URL(url).pathname==='/translate')return new Response(JSON.stringify({translatedText:'Synthetic translation.'}));
   if(new URL(url).pathname==='/translator'){await bingPageHook?.();return new Response('var params_AbusePreventionHelper = [123456,"worker-page-token",600000]; IG:"ABC123", <div id="rich_tta" data-iid="translator.1">');}
   if(url.includes('/translate_a/single'))return new Response(JSON.stringify([[['Hello.']]]));
   if(url.includes('/ttranslatev3'))return new Response(JSON.stringify([{translations:[{text:'Hello.',to:'en'}]}]));
@@ -23,14 +25,26 @@ const badges=[],opened=[];
 globalThis.chrome.action={setBadgeText:async value=>badges.push(value.text),setBadgeBackgroundColor:async()=>{},setTitle:async()=>{}};
 globalThis.chrome.tabs.create=async value=>opened.push(value.url);
 globalThis.chrome.permissions.onAdded=event();
-globalThis.chrome.permissions.contains=async({origins})=>origins.every(p=>permissions.has(p) || p.startsWith('https://') && permissions.has('https://*/*') || p.startsWith('http://') && permissions.has('http://*/*'));
+globalThis.chrome.permissions.contains=async({origins})=>{const allowed=origins.every(p=>permissions.has(p) || p.startsWith('https://') && permissions.has('https://*/*') || p.startsWith('http://') && permissions.has('http://*/*'));await permissionHook?.(origins);return allowed;};
 await import('../src/background.js');
 const privateView=createPrivateStorage(chrome.storage.local,chrome.storage.session);
 const value=async field=>(await privateView.get(field))[field];
 const createVault=()=>message({type:'vault-create',password:'Synthetic unit vault password'});
 const ui={url:'chrome-extension://unit/settings.html'},site={url:'https://chatgpt.com/',tab:{id:2},frameId:0};
 const message=(payload,sender=ui)=>new Promise(resolve=>listener(payload,sender,resolve));
-beforeEach(()=>{stores.local={settings:mergeSettings({llm:{},siteOrigins:['https://chatgpt.com/*']})};stores.session={};permissions.clear();permissions.add('https://chatgpt.com/*');network.length=0;bingPageHook=null;});
+beforeEach(()=>{stores.local={settings:mergeSettings({llm:{},siteOrigins:['https://chatgpt.com/*']})};stores.session={};permissions.clear();permissions.add('https://chatgpt.com/*');network.length=0;bingPageHook=null;libreLanguagesHook=null;permissionHook=null;});
+
+test('stale settings autosaves merge explicit edits into current popup and blacklist choices',async()=>{
+  const base=structuredClone(stores.local.settings),edited=structuredClone(base);edited.dailyGoal=500;
+  await message({type:'set-target-language',targetLanguage:'zh'});await message({type:'toggle',enabled:false});await message({type:'set-site-blocked',tabId:2,blocked:true});
+  assert.equal((await message({type:'save-settings',settings:edited,baseSettings:base})).ok,true);
+  assert.equal(stores.local.settings.dailyGoal,500);assert.equal(stores.local.settings.targetLanguage,'zh');assert.equal(stores.local.settings.enabled,false);assert.deepEqual(stores.local.settings.blocklist,['chatgpt.com']);
+});
+test('stale settings cannot bind supplied keys to a provider identity changed in another page',async()=>{
+  const base=structuredClone(stores.local.settings),edited=structuredClone(base);stores.local.settings.basic.azure.endpoint='https://other.example';
+  const before=structuredClone(stores);const result=await message({type:'save-settings',settings:edited,baseSettings:base,keys:{azure:'synthetic-stale-key'}});
+  assert.equal(result.ok,false);assert.match(result.error,/Settings changed/);assert.deepEqual(stores,before);
+});
 
 test('vault lock rejects late writes and content access while preserving private data for explicit unlock',async()=>{
   assert.equal((await createVault()).ok,true);const generation=stores.local.historyGeneration;
@@ -298,6 +312,53 @@ test('daily LLM limit counts attempts and blocks subsequent requests before netw
   const request={type:'suggest',text:'This are correct.'};assert.equal((await message(request,site)).ok,true);assert.equal(network.length,1);
   const next=await message(request,site);assert.equal(next.ok,false);assert.match(next.error,/daily LLM request limit/);assert.equal(network.length,1);
   const publicState=await message({type:'state'});assert.ok(!JSON.stringify(publicState).includes('synthetic-key'));
+});
+
+for(const change of ['consent','disabled','endpoint','site-selection','host-permission','forget-keys'])test(`queued LLM requests recheck ${change} before sending source text`,async()=>{
+  const s=mergeSettings({siteOrigins:['https://chatgpt.com/*'],llm:{enabled:true,consent:true,provider:'compatible',endpoint:'https://llm.test/v1',model:'fixture'}});
+  permissions.add('https://llm.test/*');assert.equal((await message({type:'save-settings',settings:s,keys:{llm:'synthetic-race-key'}})).ok,true);
+  let release,reached;const gate=new Promise(resolve=>{release=resolve;}),arrived=new Promise(resolve=>{reached=resolve;});let blocked=false;
+  permissionHook=async origins=>{if(!blocked && origins.includes('https://llm.test/*')){blocked=true;reached();await gate;}};
+  const pending=message({type:'suggest',lane:'llm',text:'Synthetic queued request.'},site);
+  try{
+    await arrived;
+    if(change==='host-permission')permissions.delete('https://llm.test/*');
+    else if(change==='forget-keys')assert.equal((await message({type:'forget-keys'})).ok,true);
+    else if(change==='site-selection')assert.equal((await message({type:'set-site-preferences',preferences:{llmProfileId:null}},site)).ok,true);
+    else{
+      if(change==='consent')s.llm.consent=false;
+      if(change==='disabled')s.llm.enabled=false;
+      if(change==='endpoint'){s.llm.endpoint='https://changed.test/v1';s.llm.consent=false;}
+      assert.equal((await message({type:'save-settings',settings:s})).ok,true);
+    }
+    release();const response=await pending;assert.equal(response.ok,false);assert.equal(network.length,0,'revoked or replaced configuration must not transmit the queued draft');
+  }finally{release();permissionHook=null;}
+});
+
+for(const change of ['consent','site-access','host-permission'])test(`MT rechecks ${change} after asynchronous provider availability`,async()=>{
+  const s=mergeSettings({siteOrigins:['https://chatgpt.com/*'],llm:{},basicEngine:'libre',basicFallback:false,basic:{libre:{consent:true,endpoint:'https://libre.test'}}});
+  permissions.add('https://libre.test/*');assert.equal((await message({type:'save-settings',settings:s})).ok,true);
+  let release,reached;const gate=new Promise(resolve=>{release=resolve;}),arrived=new Promise(resolve=>{reached=resolve;});libreLanguagesHook=async()=>{reached();await gate;};
+  const pending=message({type:'suggest',lane:'mt',text:'合成测试。'},site);
+  try{
+    await arrived;
+    if(change==='consent'){s.basic.libre.consent=false;assert.equal((await message({type:'save-settings',settings:s})).ok,true);}
+    else permissions.delete(change==='site-access'?'https://chatgpt.com/*':'https://libre.test/*');
+    release();assert.equal((await pending).ok,false);assert.deepEqual(network.map(request=>new URL(request.url).pathname),['/languages']);assert.equal(network[0].opts.body,undefined);
+  }finally{release();libreLanguagesHook=null;}
+});
+
+test('an already-started LLM fetch does not hold settings writes or discard its completed response',async()=>{
+  const s=mergeSettings({siteOrigins:['https://chatgpt.com/*'],llm:{enabled:true,consent:true,provider:'compatible',endpoint:'https://llm.test/v1',model:'fixture'}});
+  permissions.add('https://llm.test/*');assert.equal((await message({type:'save-settings',settings:s,keys:{llm:'synthetic-inflight-key'}})).ok,true);
+  const original=globalThis.fetch;let release,reached;const gate=new Promise(resolve=>{release=resolve;}),arrived=new Promise(resolve=>{reached=resolve;});
+  globalThis.fetch=async(url,options)=>{const response=await original(url,options);reached();await gate;return response;};
+  const pending=message({type:'suggest',lane:'llm',text:'Synthetic in-flight request.'},site);
+  try{
+    await arrived;assert.equal(network.length,1);
+    s.llm.consent=false;assert.equal((await message({type:'save-settings',settings:s})).ok,true);
+    release();assert.equal((await pending).ok,true);assert.equal(network.length,1);
+  }finally{release();globalThis.fetch=original;}
 });
 test('new LLM providers require separate consent and host grants; switching drops credentials',async()=>{
   for(const provider of ['mimo','siliconflow']){

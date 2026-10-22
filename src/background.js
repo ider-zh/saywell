@@ -12,6 +12,7 @@ import {exportConfigBackup,parseConfigBackup,configSummary} from './core/config-
 import {SETUP_ORIGINS,enableFreeSetup} from './core/setup.js';
 import {HISTORY_LIMITS,historyLimit,historyResult,mergeHistory,trimHistory} from './core/history.js';
 import {createPrivateStorage} from './core/private-storage.js';
+import {mergeSettingsEdits} from './core/settings-edits.js';
 import {snoozeStatus,snoozeDeadline,changeSnooze} from './core/snooze.js';
 
 const privateLocal=createPrivateStorage(chrome.storage.local,chrome.storage.session);
@@ -200,15 +201,14 @@ async function handle(message,sender) {
     const mode=['auto','translate','polish','explain'].includes(message.mode) ? message.mode : effective.mode;
     const action=routeAction(text,mode,effective.llm.enabled,effective.targetLanguage);
     if (action.action === 'none') return null;
-    const config=await withKeys(effective);
     if(message.lane!==undefined && !['mt','llm'].includes(message.lane))throw new Error('Invalid processing lane.');
     if(message.lane==='mt'){
       if(action.action==='explain' || translationPair(text,effective.targetLanguage).source===effective.targetLanguage)return null;
     }else{
-      if (effective.llm.enabled && effective.llm.consent) return runLLM(text,config,{...action,targetLanguage:effective.targetLanguage,style:effective.style,difficulty:effective.difficulty,maxWords:effective.maxWords},sender);
+      if (effective.llm.enabled && effective.llm.consent) return runLLM(text,effective,{...action,targetLanguage:effective.targetLanguage,style:effective.style,difficulty:effective.difficulty,maxWords:effective.maxWords},sender);
       if (message.lane==='llm' || action.needsLLM) throw new Error('Polish and Explain need a connected, enabled LLM service.');
     }
-    const health=(await chrome.storage.session.get('health')).health || {};
+    const config=await withKeys(effective),health=(await chrome.storage.session.get('health')).health || {};
     const router=new BasicRouter(basicProviders,{health});
     try {
       const result=await router.translate(text,config,(endpoint,id)=>basicAccess(endpoint,id,sender));
@@ -311,7 +311,15 @@ async function handle(message,sender) {
   });
   if (message.type === 'save-settings') return serial(async()=>{
     if((await privateLocal.status()).locked)throw new Error('Unlock the vault before changing private data.');
-    const previous=await settings(); const next=validateSettings(mergeSettings(message.settings));
+    const previous=await settings(),edited=validateSettings(mergeSettings(message.settings));
+    const next=message.baseSettings?validateSettings(mergeSettingsEdits(validateSettings(mergeSettings(message.baseSettings)),edited,previous)):edited;
+    // A stale form must never attach its supplied credential to an identity
+    // selected in another window while the autosave was waiting.
+    for(const id of BASIC_KEY_IDS)if(typeof message.keys?.[id]==='string' && next.basic[id].endpoint!==edited.basic[id].endpoint)throw new Error('Settings changed in another window. Reload Settings and try again.');
+    for(const cfg of next.llmProfiles){
+      const original=edited.llmProfiles.find(profile=>profile.id===cfg.id),supplied=message.profileKeys?.[cfg.id] ?? (cfg.id===edited.activeLlmId?message.keys?.llm:undefined);
+      if(typeof supplied==='string' && (!original || original.provider!==cfg.provider || original.endpoint!==cfg.endpoint))throw new Error('Settings changed in another window. Reload Settings and try again.');
+    }
     for (const c of [...next.llmProfiles,...Object.values(next.basic)]) if (c.endpoint) endpointURL(c.endpoint);
     // UI is required to grant a new origin and opt in again before saving changed endpoints.
     for (const c of [...next.llmProfiles,...Object.values(next.basic)]) if (c.consent && (!c.endpoint || !await granted(c.endpoint))) throw new Error('Grant endpoint access before authorizing text transmission.');
@@ -330,7 +338,7 @@ async function handle(message,sender) {
     for(const id of new Set([...Object.keys(local),...Object.keys(session)]))if((id==='llm' || id.startsWith('llm:')) && !retained.has(id)){delete local[id];delete session[id];}
     for(const cfg of next.llmProfiles){
       const id=llmKeyId(cfg.id),prev=previous.llmProfiles.find(p=>p.id===cfg.id);
-      const supplied=message.profileKeys?.[cfg.id] ?? (cfg.id===next.activeLlmId?message.keys?.llm:undefined);
+      const supplied=message.profileKeys?.[cfg.id] ?? (cfg.id===edited.activeLlmId?message.keys?.llm:undefined);
       const same=prev && cfg.endpoint===prev.endpoint && cfg.provider===prev.provider;
       const key=typeof supplied==='string'?supplied.slice(0,4096):same?session[id] || local[id] || '':'';
       delete local[id];delete session[id];(cfg.rememberKey?local:session)[id]=key;
@@ -345,7 +353,7 @@ async function handle(message,sender) {
     await chrome.storage.session.set({llmHealth:{}});
     const id=message.profileId ?? s.activeLlmId,profile=s.llmProfiles.find(p=>p.id===id);
     if(!profile)throw new Error('Invalid LLM configuration.');
-    const result=await runLLM('This is a connection test.',await withKeys({...s,activeLlmId:id,llm:llmConfig(profile)}),{action:'translate',targetLanguage:s.targetLanguage,style:s.style,difficulty:s.difficulty,maxWords:0});
+    const result=await runLLM('This is a connection test.',{...s,activeLlmId:id,llm:llmConfig(profile)},{action:'translate',targetLanguage:s.targetLanguage,style:s.style,difficulty:s.difficulty,maxWords:0});
     return {engine:result.engine,ok:true};
   }
   if (message.type === 'test-basic') {
@@ -378,10 +386,24 @@ async function runLLM(text,s,request,sender) {
     await privateLocal.set({usage:{day,requests:(sameDay?usage.requests || 0:0)+1,profiles:{...profiles,[healthId]:count+1}}});
   });
   const vocabulary=(await privateLocal.get('vocabulary')).vocabulary || [];
-  if(s.llm.rememberKey && (await privateLocal.status()).locked)throw new Error('Unlock the vault in Settings to use saved API keys.');
-  if(sender){const latest=await settings();if(!latest.enabled || !await forSite(sender,latest))throw new Error('Suggestions are paused or this website is excluded.');}
+  // A settings change can complete while the request waits for usage/storage.
+  // Start the fetch while holding only this short authorization transaction;
+  // wrap its promise so the queue never waits for the network response.
+  const pending=await serial(async()=>{
+    const latest=await settings(),profile=latest.llmProfiles.find(p=>p.id===healthId);
+    if(!profile || !profile.enabled || !profile.consent || profile.provider!==s.llm.provider || profile.endpoint!==s.llm.endpoint)throw new Error('Connect the LLM service in Settings before using it.');
+    if(sender){
+      if(!latest.enabled || !await forSite(sender,latest))throw new Error('Suggestions are paused or this website is excluded.');
+      const effective=resolveSiteSettings(latest,await preferencesFor(sender,latest));
+      if(!effective.llm.enabled || effective.activeLlmId!==healthId)throw new Error('Connect the LLM service in Settings before using it.');
+    }
+    const current=await withKeys({...latest,activeLlmId:healthId,llm:llmConfig(profile)});
+    if(current.llm.rememberKey && (await privateLocal.status()).locked)throw new Error('Unlock the vault in Settings to use saved API keys.');
+    if(!await granted(current.llm.endpoint))throw new Error('Connect the LLM service in Settings before using it.');
+    return {result:processLLM(text,current.llm,{...request,known:vocabulary.filter(v=>v.status==='known').map(v=>v.word)})};
+  });
   try {
-    const result=await processLLM(text,s.llm,{...request,known:vocabulary.filter(v=>v.status==='known').map(v=>v.word)});
+    const result=await pending.result;
     await updateLLMHealth(healthId,{failures:0});
     await privateLocal.set({lastEngine:result.engine});
     return {...result,action:request.action};

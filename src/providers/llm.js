@@ -1,6 +1,6 @@
 import { apiURL, cleanResult } from '../core/security.js';
 import {llmProviderName} from '../core/llm-providers.js';
-import { ProviderError, fetchJSON, jsonPost } from './http.js';
+import { ProviderError, fetchJSON, jsonPost, readResponseText } from './http.js';
 import {thinkingOptions,geminiThinking} from './thinking.js';
 
 export function systemPrompt({action,style,difficulty,maxWords,targetLanguage='en'}) {
@@ -29,7 +29,7 @@ export async function processLLM(text, config, request, fetcher = fetch) {
     const opts=jsonPost({text,action:request.action,style:request.style,targetLanguage:request.targetLanguage || 'en',difficulty:request.difficulty,maxWords:request.maxWords,maxTokens:Math.min(800,config.maxTokens),thinking:config.thinking});opts.headers['X-Saywell-Client']='1';
     const wrapped=async(url,options)=>{
       const response=await fetcher(url,options);if(response.ok)return response;
-      let data;try{const raw=await response.text();if(raw.length<=20000)data=JSON.parse(raw);}catch{}
+      let data;try{data=JSON.parse(await readResponseText(response,20000,options.signal));}catch(error){if(options.signal.aborted)throw error;}
       const code=data?.error?.code;
       if(code==='daily_quota_exhausted')throw new ProviderError('quota','Saywell free AI quota is exhausted for today. It resets at 08:00 Shanghai time. MT is still available.',Math.min(86400000,Math.max(1,Number(response.headers.get('retry-after'))||60)*1000));
       if(code==='preview_ended')throw new ProviderError('unavailable','Saywell free AI preview has ended. Use MT or connect your own LLM provider.');

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Saywell",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Translate as you type, polish your English, and track your own writing. You control what leaves your browser.",
   "minimum_chrome_version": "116",
   "permissions": [

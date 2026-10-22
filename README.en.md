@@ -8,7 +8,7 @@ Translate and polish where you type.
 
 Unsure how to phrase an English message? Write your thought in Chinese, or draft in English, and pause for a suggestion. Keep the original, copy the result or choose Apply. Saywell never sends the message for you.
 
-For Chrome and Edge. **Version 0.1.1 is a preview submitted to Chrome Web Store review; it is not yet listed.** You can use the GitHub installation package below while review is pending.
+For Chrome and Edge. **This is a preview.** Start with the GitHub installation package below.
 
 ## Install and start writing
 
@@ -29,6 +29,8 @@ For Chrome and Edge. **Version 0.1.1 is a preview submitted to Chrome Web Store 
 
 Use **Alt + Shift + E** for a manual suggestion, or **Command + Shift + E** on macOS.
 
+Content consisting only of URLs, email addresses, numbers or clear identifiers (such as UUIDs, hashes or order IDs) skips automatic suggestions and the progress ring. Sentences containing natural language still work normally. Use the manual shortcut to process skipped content when needed.
+
 ![Saywell translation and polishing beside an input, using demonstration text](store/assets/screenshot-translation-zh.png)
 
 ## Make the expression your own
@@ -48,6 +50,8 @@ The interface supports Chinese and English and follows your browser by default. 
 ## History and privacy
 
 Open **Translation history** from the sidebar or popup to search, remove, clear or export recent translations. The rolling limit starts at **100 records** and can be changed or switched off.
+
+If private storage is full, remove unneeded vocabulary or history and try again. A rejected oversized save leaves existing records intact.
 
 **History, vocabulary and statistics initially last only for the current browser session.** Browser restart or extension reload, update or disable clears session records. For retention across restart, create a **Local vault** in Settings. It keeps encrypted records on your device and requires your password after restart. Remembering API keys also requires an unlocked vault. Forgotten passwords cannot be recovered.
 

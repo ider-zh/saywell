@@ -11,4 +11,4 @@ await buildBrand('dist/icons');
 await buildPrivacy();
 const manifest=JSON.parse(await readFile('dist/manifest.json','utf8'));
 if(manifest.host_permissions || manifest.content_scripts)throw new Error('Website access must be optional.');
-console.log('Built Saywell 0.1.0 → dist/ (MV3, all scripts bundled locally)');
+console.log(`Built Saywell ${manifest.version} → dist/ (MV3, all scripts bundled locally)`);

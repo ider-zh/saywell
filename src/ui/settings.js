@@ -7,10 +7,12 @@ import {builtin} from '../providers/builtin.js';
 import {LLM_PROVIDERS} from '../core/llm-providers.js';
 import {CONFIG_FILE_LIMIT} from '../core/config-backup.js';
 import {HOSTED_AI_ENDPOINT,LEGACY_HOSTED_AI_ENDPOINT} from '../core/hosted-ai.js';
+import {mergeSettingsEdits} from '../core/settings-edits.js';
 let state={settings:mergeSettings(),hasKeys:{}},s=state.settings;
+let syncedSettings=structuredClone(s);
 let editingId=s.activeLlmId,pendingProfileKeys={};
 let pendingImport=null,importRevision=0;
-let saveTimer,editRevision=0,saveQueue=Promise.resolve(),savePending=0,loaded=false;
+let saveTimer,editRevision=0,saveQueue=Promise.resolve(),savePending=0,loaded=false,forgettingKeys=false;
 for(const id of RETIRED_BASIC_IDS){document.querySelector(`#basicEngine option[value="${id}"]`)?.remove();const row=document.querySelector(`[data-test="${id}"]`)?.parentElement;row?.classList.add('hidden');row?.previousElementSibling?.classList.add('hidden');}
 $('.free-engines')?.classList.add('hidden');$('#googleweb-endpoint')?.closest('details')?.classList.add('hidden');
 const edited=()=>s.llmProfiles.find(p=>p.id===editingId);
@@ -104,30 +106,56 @@ function collect(){
   for(const host of [...s.allowlist,...s.blocklist])if(!/^(?:\*\.)?[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/.test(host))throw new Error('Host rules must be hostnames, optionally starting with *., without URLs or paths.');
   return s;
 }
+function syncAcknowledgement(snapshot,latest){
+  // collect() may reject an incomplete host rule while the user is typing; its
+  // field reads still preserve that draft for the merge and the next save.
+  try{collect();}catch{}
+  const previous=structuredClone(s),next=mergeSettingsEdits(snapshot,s,latest),oldProfile=previous.llmProfiles.find(p=>p.id===editingId);
+  // Unsaved credentials belong to the identity displayed when they were typed,
+  // even when a storage event rebases the form before its debounce fires.
+  for(const profile of previous.llmProfiles){const after=next.llmProfiles.find(p=>p.id===profile.id);if(!after || after.provider!==profile.provider || after.endpoint!==profile.endpoint){delete pendingProfileKeys[profile.id];if(profile.id===editingId)putValue('llm-key','');}}
+  for(const id of BASIC_KEY_IDS)if(previous.basic[id].endpoint!==next.basic[id].endpoint)putValue(id+'-key','');
+  s=next;syncedSettings=structuredClone(latest);
+  const update=(id,before,after)=>{if(JSON.stringify(before)!==JSON.stringify(after))putValue(id,after);};
+  for(const field of topFields)update(field,previous[field],s[field]);
+  for(const field of ['allowlist','blocklist'])update(field,previous[field].join('\n'),s[field].join('\n'));
+  for(const id of BASIC_KEY_IDS)update(id+'-remember',previous.basic[id].rememberKey,s.basic[id].rememberKey);
+  for(const id of ['libre','googleweb','bing'])update(id+'-endpoint',previous.basic[id].endpoint,s.basic[id].endpoint);
+  update('azure-region',previous.basic.azure.region,s.basic.azure.region);
+  const profile=edited();
+  if(!profile){editingId=s.activeLlmId;renderProfileForm();}
+  else if(oldProfile){
+    for(const field of llmFields)update('llm-'+field,field==='timeout'?oldProfile[field]/1000:oldProfile[field],field==='timeout'?profile[field]/1000:profile[field]);
+    update('llm-profile-name',oldProfile.name,profile.name);update('llm-remember',oldProfile.rememberKey,profile.rememberKey);
+  }
+  renderKeyHints();renderProfiles();renderLLMProvider();renderConsent();renderOrder();renderSites();renderSitePolicy();
+}
 function save({auto=false}={}){
   clearTimeout(saveTimer);
+  if(forgettingKeys)throw new Error('Wait for API keys to finish clearing before saving preferences.');
   if(pendingImport)throw new Error('Finish or cancel configuration import before saving preferences.');
   for(const id of persistedFields){const field=$('#'+id);if(field && !(auto?field.checkValidity():field.reportValidity()))throw new Error('Check the highlighted setting.');}
-  const snapshot=structuredClone(validateSettings(collect())),profileKeys={...pendingProfileKeys},revision=editRevision,profileId=editingId;
+  const snapshot=structuredClone(validateSettings(collect())),baseSettings=structuredClone(syncedSettings),profileKeys={...pendingProfileKeys},revision=editRevision,profileId=editingId;
   const keys={};for(const id of BASIC_KEY_IDS)if(getValue(id+'-key'))keys[id]=getValue(id+'-key');
   savePending++;
   const operation=saveQueue.catch(()=>{}).then(async()=>{
-    await send('save-settings',{settings:snapshot,keys,profileKeys});
+    await send('save-settings',{settings:snapshot,baseSettings,keys,profileKeys});
     const latest=await send('state');
     if(revision===editRevision){
       for(const id of Object.keys(keys))if(getValue(id+'-key')===keys[id])putValue(id+'-key','');
       for(const[id,key]of Object.entries(profileKeys))if(pendingProfileKeys[id]===key){delete pendingProfileKeys[id];if(editingId===id && getValue('llm-key')===key)putValue('llm-key','');}
     }
     state={...state,...latest};
+    if(!pendingImport)syncAcknowledgement(snapshot,latest.settings);
     // Acknowledgement must never replace newer edits or move the typing cursor.
     if(revision===editRevision && !pendingImport){
-      if(!auto && editingId===profileId){s=latest.settings;render();}else{renderKeyHints();renderProfiles();renderConsent();renderOrder();}
+      if(!auto && editingId===profileId){s=latest.settings;render();}
       status('Preferences saved.');toast('Preferences saved.');
     }
   }).finally(()=>{savePending--;});saveQueue=operation;return operation;
 }
 function scheduleSave(){
-  editRevision++;clearTimeout(saveTimer);if(!loaded || pendingImport)return;
+  editRevision++;clearTimeout(saveTimer);if(!loaded || pendingImport || forgettingKeys)return;
   status('Saving changes…');saveTimer=setTimeout(()=>{
     try{Promise.resolve(save({auto:true})).catch(saveFailure);}catch(error){saveFailure(error);}
   },650);
@@ -147,10 +175,7 @@ $('#llm-provider').addEventListener('change',()=>{
 $('#llm-profile').addEventListener('change',()=>{const next=getValue('llm-profile');collect();editingId=next;renderProfileForm();renderKeyHints();renderLLMProvider();renderConsent();});
 $('#llm-profile-name').addEventListener('input',()=>{edited().name=getValue('llm-profile-name');renderProfiles();});
 if(globalThis.chrome?.runtime?.id)chrome.storage.onChanged.addListener((changes,area)=>{
-  const id=changes.settings?.newValue?.activeLlmId;
-  if(!savePending && area==='local' && id && id!==s.activeLlmId && s.llmProfiles.some(p=>p.id===id)){
-    s.activeLlmId=id;s.llm=llmConfig(s.llmProfiles.find(p=>p.id===id));renderProfiles();
-  }
+  if(!savePending && !pendingImport && loaded && area==='local' && changes.settings?.newValue){try{syncAcknowledgement(syncedSettings,mergeSettings(changes.settings.newValue));}catch(error){status(error.message,true);}}
 });
 $('#add-llm-profile').addEventListener('click',()=>{if(s.llmProfiles.length>=20)return;collect();const p={...DEFAULTS.llm,id:crypto.randomUUID(),name:t('Configuration {number}',{number:s.llmProfiles.length+1})};s.llmProfiles.push(p);editingId=p.id;renderProfileForm();renderKeyHints();renderLLMProvider();renderConsent();scheduleSave();});
 $('#activate-llm-profile').addEventListener('click',task(async()=>{collect();s.activeLlmId=editingId;await save();status('Active configuration saved.');}));
@@ -188,7 +213,23 @@ document.querySelectorAll('[data-test]').forEach(b=>b.addEventListener('click',t
 // The former multi-provider quick start is not part of the store candidate.
 $('#test-llm').addEventListener('click',task(async()=>{const profileId=await connectProvider('llm');status('Testing with “This is a connection test.”…');const r=await send('test-llm',{profileId});status('Connected to {engine}. Synthetic request completed.',false,{engine:r.engine});}));
 $('#prepare-local').addEventListener('click',task(async()=>{const target=getValue('targetLanguage'),promise=builtin.prepare({source:target==='zh'?'en':'zh',target});text('#local-state','Preparing the language model…');await promise;text('#local-state','Model ready in this settings document. Website availability is checked separately.');status('Local model prepared.');}));
-$('#forget-keys').addEventListener('click',task(async()=>{await send('forget-keys');pendingProfileKeys={};for(const id of KEY_IDS)putValue(id+'-key','');state.hasKeys={};state.hasProfileKeys={};renderKeyHints();status('All stored keys forgotten.');}));
+$('#forget-keys').addEventListener('click',task(async()=>{
+  if(forgettingKeys)return;
+  forgettingKeys=true;clearTimeout(saveTimer);editRevision++;
+  const controls=[...document.querySelectorAll('input,select,textarea,button')].map(control=>({control,disabled:control.disabled}));
+  for(const{control}of controls)control.disabled=true;
+  let forgotten=false;
+  try{
+    // A queued snapshot may still contain a key. Its write must finish before
+    // removal, and new input must not enqueue another snapshot in the meantime.
+    await saveQueue.catch(()=>{});await send('forget-keys');
+    pendingProfileKeys={};for(const id of KEY_IDS)putValue(id+'-key','');state.hasKeys={};state.hasProfileKeys={};renderKeyHints();forgotten=true;
+  }finally{
+    forgettingKeys=false;for(const{control,disabled}of controls)control.disabled=disabled;
+  }
+  // Retain autosave for unrelated form edits whose debounce was cancelled.
+  if(forgotten){scheduleSave();status('All stored keys forgotten.');}
+}));
 function renderSites(){
   $('#site-list').replaceChildren();for(const origin of s.siteOrigins){const row=el('li');row.append(el('span',origin));const b=el('button',t('Remove'));b.type='button';b.addEventListener('click',task(async()=>{s.siteOrigins=s.siteOrigins.filter(x=>x!==origin);await save();status('Website input access removed. Existing tabs stop processing this site.');}));row.append(b);$('#site-list').append(row);}
 }
@@ -236,15 +277,15 @@ $('#confirm-config-import').addEventListener('click',task(async()=>{
   if($('#config-import-access').checked && selected.summary.missingOrigins.length && !await chrome.permissions.request({origins:selected.summary.missingOrigins}))throw new Error('Website access was not granted. Nothing was imported.');
   await saveQueue.catch(()=>{});const result=await send('import-config',{text:selected.text});cancelImport(false);
   pendingProfileKeys={};for(const id of KEY_IDS)putValue(id+'-key','');
-  state=await send('state');s=state.settings;editingId=s.activeLlmId;render();
+  state=await send('state');s=state.settings;syncedSettings=structuredClone(s);editingId=s.activeLlmId;render();
   status(result.skippedOrigins?'Configuration imported; {count} website scopes were skipped. Reauthorize providers and refresh website tabs.':'Configuration imported. Reauthorize providers and refresh website tabs.',false,{count:result.skippedOrigins});
   if(edited()?.enabled && !edited().consent){$('#test-llm').scrollIntoView({block:'center'});$('#test-llm').focus({preventScroll:true});toast('Configuration imported. Click Connect and test to restore the selected LLM.');}
 }));
 $('#export').addEventListener('click',task(async()=>{const data=await send('state');download('saywell-practice.json',{schemaVersion:1,exportedAt:new Date().toISOString(),analytics:data.analytics || {},vocabulary:(data.vocabulary || []).map(({context,...word})=>word)});status('Exported activity and vocabulary without credentials or contexts.');}));
 $('#reset').addEventListener('click',()=>{$('#confirm-reset').classList.remove('hidden');status('Reset deletes all local activity and vocabulary. Click Confirm reset to continue.');});
 $('#confirm-reset').addEventListener('click',task(async()=>{await send('reset-data');$('#confirm-reset').classList.add('hidden');status('Practice data reset.');}));
-mountVault($('#privacy'),async()=>{clearTimeout(saveTimer);await saveQueue.catch(()=>{});state=await send('state');s=state.settings;pendingProfileKeys={};for(const id of KEY_IDS)putValue(id+'-key','');render();});
+mountVault($('#privacy'),async()=>{clearTimeout(saveTimer);await saveQueue.catch(()=>{});state=await send('state');s=state.settings;syncedSettings=structuredClone(s);pendingProfileKeys={};for(const id of KEY_IDS)putValue(id+'-key','');render();});
 const setupHolder=el('div');$('.page-heading').after(setupHolder);
 const builtinBackupNote=el('p',t('Built-in Saywell Free AI follows this app version and is not restored from backup data. Custom LLM configurations are portable.'),'help');builtinBackupNote.dataset.i18n='Built-in Saywell Free AI follows this app version and is not restored from backup data. Custom LLM configurations are portable.';$('.config-transfer .help').after(builtinBackupNote);
-mountSetup(setupHolder,{beforeComplete:async()=>{clearTimeout(saveTimer);editRevision++;await saveQueue.catch(()=>{});},onComplete:async()=>{state=await send('state');s=state.settings;editingId=s.activeLlmId;render();}});
-if(!previewNotice())send('state').then(data=>{state=data;s=data.settings;editingId=s.activeLlmId;render();loaded=true;}).catch(e=>status(e.message,true));render();
+mountSetup(setupHolder,{beforeComplete:async()=>{clearTimeout(saveTimer);editRevision++;await saveQueue.catch(()=>{});},onComplete:async()=>{state=await send('state');s=state.settings;syncedSettings=structuredClone(s);editingId=s.activeLlmId;render();}});
+if(!previewNotice())send('state').then(data=>{state=data;s=data.settings;syncedSettings=structuredClone(s);editingId=s.activeLlmId;render();loaded=true;}).catch(e=>status(e.message,true));render();

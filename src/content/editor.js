@@ -1,13 +1,14 @@
 const sensitive = /password|passwd|credit.?card|cc-number|cc-csc|one-time-code|api.?key|secret|token|social.?security/i;
+const excluded=element=>element.matches('[contenteditable="false"]') || element.disabled || element.readOnly || element.getAttribute('aria-hidden')==='true' ||
+  sensitive.test([element.id,element.getAttribute('name'),element.getAttribute('autocomplete'),element.getAttribute('aria-label')].join(' '));
 export function editorFor(target) {
   if (!(target instanceof Element)) return null;
   const element=target.closest('textarea,input,[contenteditable]');
   if (!element || element.closest('[data-input-coach-ignore]')) return null;
   if (element.matches('input') && !['text','search',''].includes(element.getAttribute('type') || '')) return null;
-  if (element.matches('[contenteditable="false"]') || element.disabled || element.readOnly || element.getAttribute('aria-hidden')==='true') return null;
-  if (sensitive.test([element.id,element.getAttribute('name'),element.getAttribute('autocomplete'),element.getAttribute('aria-label')].join(' '))) return null;
+  if (excluded(element)) return null;
   let root=element;
-  while (root.parentElement?.isContentEditable) root=root.parentElement;
+  while (root.parentElement?.isContentEditable) {root=root.parentElement;if(excluded(root))return null;}
   return root;
 }
 export function readEditor(element) {

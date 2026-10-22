@@ -1,5 +1,25 @@
 # Architecture
 
+Release preparation on 2026-10-23: reviewed runtime changes are targeted for patch 0.1.2 after the owner's push/version request. Existing isolated tag-delivery jobs and checksum guards apply; a source push alone does not publish. Review validation below is the pre-release checkpoint, distinct from the required versioned CI/asset verification.
+
+The 0.1.2 local gate passed the full 141 functional / 1 performance / 70 browser suite and 25-file package validation. Remote CI and the downloadable artifact remain independent delivery checks.
+
+## Follow-up code review — 2026-10-23
+
+Automatic content eligibility is checked locally before scheduling or displaying progress and rechecked before a nonmanual suggestion starts. URL/email/IP, numeric-only and obvious identifier-only content is skipped; mixed natural-language drafts and explicit manual suggestions retain the existing provider consent/site-permission path. The filter is bounded by the existing 6,000-character suggestion limit and adds no DOM work, timers or remote classifier.
+
+IME commits may automatically schedule only with a trusted end or trusted start plus trusted composing input. A synthetic orphan/full composition sequence cannot initiate provider work. Editing-root discovery checks exclusions at every editable ancestor, preventing an innocuous nested child from bypassing a sensitive/hidden root.
+
+Eligible committed drafts remain queued when the current automatic route has no lane, so a just-enabled LLM policy can process the same unchanged draft once received. Suggestions wait while policy refresh is pending; accepted identical/metadata replies resume only a consumed timer, preventing duplicate sends. Escape, editor/source changes, composition and site policy retain their cancellation guards. The document keyboard shortcut also requires a trusted key event.
+
+Provider text is decoded incrementally with the existing UTF-16 length limits, a UTF-8 byte ceiling and cancellation on overflow/timeout. Error bodies are also cancelled or bounded. MT rechecks consent after asynchronous availability checks. LLM fetch startup uses a short serialized preflight of the current profile, keys, site selection and host permission; its response promise leaves the write queue immediately. This removes eager duplicate LLM key reads without serializing network lanes.
+
+Private envelopes support reads up to 10 MiB so previously accepted large records remain readable. New private writes enforce a 9 MiB aggregate envelope budget including UTF-8, AES tag and base64 overhead, reserving space for configuration/metadata. Oversized writes are rejected before replacing ciphertext or migrating/removing legacy records. This budget is independent of the rolling history record count.
+
+Settings autosaves include their last synchronized baseline. The trusted worker merges only actual edits into current settings within its write transaction, including hostname membership deltas and profiles by ID. Endpoint/provider identity transitions cannot mix dependent settings or attach supplied keys to another identity. UI acknowledgement reconciliation preserves newer form edits/cursor and drops unsaved keys when identities change. Forget all keys drains queued snapshots before deletion and blocks new saves during removal; failure restores editing/retry.
+
+This revision passed 141 functional tests, 1 isolated performance test, 70 Chromium cases and packaging locally. See technical-validation.md for the initial failures, fixes, final measurements and unverified live-browser boundaries.
+
 ## CI and version delivery
 
 Chrome delivery is implemented as a separate reusable workflow with explicit activation, scoped OIDC permission and Google WIF service-account impersonation. It uses no stored JSON key or credentials file; the access token is short-lived and passed only to the delivery process. A manual run is read-only status; matching pushed tags may upload the exact SHA-256-verified tested ZIP and submit review after upload success, with warnings blocking and review enabled. Other pending versions, policy warnings and upload/API failures stop rather than cancel or overwrite existing work. The owner-authorized publisher binding, restricted WIF provider/repository principal and five GitHub variables are configured. Manual status run 39766610592 successfully obtained a token and queried the configured item; actual submission/publication must be verified separately.
@@ -10,7 +30,7 @@ Ordinary push/PR/manual workflows build read-only and retain temporary artifacts
 
 ## Store preparation and private storage
 
-The current release candidate keeps the existing disclosed single-action website/Cloudflare consent flow. Browser-local MT is attempted where available; MyMemory and official keyed/self-hosted MT require a separate connection. Experimental Google web/Bing/Edge HTTP adapters are absent from the production provider import graph. Known saved consent is cleared and their options hidden, with worker-side tests refused. Historical protocol fixtures remain source-only. No cloud deployment or store submission is automated.
+The current release candidate keeps the existing disclosed single-action website/Cloudflare consent flow. Browser-local MT is attempted where available; MyMemory and official keyed/self-hosted MT require a separate connection. Experimental Google web/Bing/Edge HTTP adapters are absent from the production provider import graph. Known saved consent is cleared and their options hidden, with worker-side tests refused. Historical protocol fixtures remain source-only. Cloudflare deployment remains separate; version-tag Store delivery follows the explicit gate above.
 
 `createPrivateStorage` mediates all background local-store calls. Keys, history, vocabulary (including opted-in context) and analytics are encrypted per field using AES-256-GCM, fresh 96-bit IVs and AAD bound to vault ID/field/schema. Without a vault, ciphertext and the random 256-bit data key live only in trusted storage.session memory. The default 100-row history remains usable without a password; browser restart, reload/update/disable clears session data.
 

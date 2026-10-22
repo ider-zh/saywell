@@ -1,5 +1,23 @@
 # Compatibility and manual verification
 
+Patch 0.1.2 is being prepared from the reviewed fixes after the owner's push/new-version request on 2026-10-23. Local checks below refer to the review checkpoint until fresh versioned tests and GitHub delivery are verified. Store submission/publication and Cloudflare deployment remain separate results.
+
+Fresh 0.1.2 local tests/package passed: 141 functional tests, 1 isolated performance test and 70 Chromium scenarios. Remote CI/package download and any Store response need their own verification; real Windows IME, logged-in sites and Edge remain manual boundaries.
+
+## Follow-up review — 2026-10-23
+
+Automatic suggestions now omit pure URL/email/IP, number/date/amount and obvious identifier content. Mixed natural-language sentences remain eligible, and manual shortcuts retain an override. This is a conservative convenience filter, not a guarantee of sensitive-content detection; existing field exclusions and consent remain required.
+
+Synthetic regressions cover nested sensitive editing roots, fully programmatic IME commits, trusted IME relays, authorization revoked during provider preparation, bounded response streams and large encrypted vocabularies. Real Windows IME, authenticated ChatGPT/X/Baidu editors, Edge parity and live provider latency remain manual checks. No real credentials or private drafts are used by automated tests.
+
+Large private stores can now be read beyond the previous 8 MiB base64 limit. New writes above the 9 MiB combined encrypted-record budget fail without replacing previous records; clear unused vocabulary/history to free space. Locked data still requires its vault password.
+
+An already-open Settings page preserves newer popup language/enablement and website blacklist changes when unrelated preferences autosave. Conflicting provider identity edits ask for a reload rather than mixing configurations. Unsaved keys are cleared when another page replaces their endpoint/provider. Forget all keys finishes older saves before deletion and allows retry if deletion fails.
+
+Typing English immediately after enabling LLM no longer loses the draft while page settings are refreshing. Delayed/identical policy replies resume an unchanged queued draft once; cancelled, composing or excluded input stays inactive. Programmatically dispatched keyboard shortcuts do not trigger suggestions; browser/user shortcuts remain available.
+
+Final local verification passed 141 functional tests, 1 isolated performance test and 70 Chromium cases with mocked remote providers, plus packaging. The full rerun met every unchanged input budget. Real Windows IME, authenticated websites, Edge and live service latency remain unverified in this review.
+
 Chrome delivery authentication is connected: the publisher service account, owner-approved restricted WIF trust/repository binding, enabled Store API and five GitHub variables are configured. Contact email is verified. Manual status run 39766610592 passed actual token exchange and item lookup for ofofhnaikohfnbgbckghgccobafkfeig; tag delivery is enabled. Native file selection works through the visible filename field and keyboard, despite indexed/coordinate targeting failures on the owned dialog. Store 0.1.0 created the initial draft with bilingual description, three screenshots, icon/promo, privacy declarations and reviewer instructions. The first API delivery, v0.1.1 run 39771550482, passed all three jobs and the dashboard confirms version 0.1.1 Pending review, with no published version yet. The actual Release ZIP downloaded successfully and matched its SHA-256/root manifest. Distinguish authentication, upload, PENDING_REVIEW and PUBLISHED.
 
 A direct keyless API probe using a synthetic sentence and the new extension origin returned HTTP 200 with a valid translation in 1,575 ms from @cf/qwen/qwen3-30b-a3b-fp8. This verifies one inference and origin response on 2026-10-22, not browser installation parity, sustained latency, remaining daily allocation or review approval. Automated browser tests still mock remote APIs; no private text or real key was used.

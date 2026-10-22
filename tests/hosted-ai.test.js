@@ -21,3 +21,10 @@ test('Saywell quota, busy and prerelease cutoff errors become actionable message
     await assert.rejects(processLLM('你好。',mergeSettings().llm,request,async()=>new Response(JSON.stringify({error:{code,detail:'private server content'}}),{status,headers:{'Retry-After':'3600'}})),error=>error.code===expected&&!error.message.includes('private')&&(expected!=='quota'||error.message.includes('08:00')));
   }
 });
+
+test('Saywell bounds and cancels oversized error bodies instead of buffering them',async()=>{
+  let cancelled=false,pulls=0;
+  const response=new Response(new ReadableStream({pull(controller){pulls++;controller.enqueue(new TextEncoder().encode('x'.repeat(10000)));},cancel(){cancelled=true;}}),{status:503});
+  await assert.rejects(processLLM('合成测试',mergeSettings().llm,request,async()=>response),error=>error.code==='unavailable'&&!error.message.includes('xxxx'));
+  assert.equal(cancelled,true);assert.ok(pulls<=4);
+});

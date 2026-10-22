@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {createPrivateStorage} from '../src/core/private-storage.js';
+import {createPrivateStorage,PRIVATE_STORAGE_BYTES} from '../src/core/private-storage.js';
 function fixture(){
   const stores={disk:{},memory:{}};
   const area=id=>({get:async names=>Object.fromEntries((typeof names==='string'?[names]:names).filter(name=>stores[id][name]!==undefined).map(name=>[name,structuredClone(stores[id][name])])),set:async values=>Object.assign(stores[id],structuredClone(values)),remove:async names=>{for(const name of typeof names==='string'?[names]:names)delete stores[id][name];}});
@@ -42,4 +42,34 @@ test('erasing a vault clears remembered-key preferences so session credentials r
   await storage.lock();await storage.erase();
   for(const cfg of [stores.disk.settings.llm,...stores.disk.settings.llmProfiles,...Object.values(stores.disk.settings.basic)])assert.equal(cfg.rememberKey,false);
   assert.equal((await storage.status()).sessionOnly,true);
+});
+test('a legal vocabulary envelope larger than 8 MiB remains readable after vault lock and unlock',async()=>{
+  const {storage,stores}=fixture();await storage.create(password);
+  // Each context is below the product's 2,000-character opt-in limit and the
+  // vocabulary remains below 2,000 records. UTF-8 and base64 both add overhead.
+  const vocabulary=Array.from({length:1400},(_,i)=>({word:'word'+i,meaning:'Synthetic meaning',explanation:'Synthetic explanation',pronunciation:'test',example:'Synthetic example',status:'saved',date:'2026-10-23',context:'汉'.repeat(1600)}));
+  await storage.set({vocabulary});
+  const envelope=stores.disk.saywellPrivateData.vocabulary;
+  assert.ok(envelope.ciphertext.length>8*1024*1024);assert.ok(new TextEncoder().encode(JSON.stringify(stores.disk.saywellPrivateData)).length<PRIVATE_STORAGE_BYTES);
+  assert.deepEqual((await storage.get('vocabulary')).vocabulary,vocabulary);
+  await storage.lock();await storage.unlock(password);assert.deepEqual((await storage.get('vocabulary')).vocabulary,vocabulary);
+});
+test('oversized private writes are rejected before mutating records, settings or session keys',async()=>{
+  const empty=fixture(),oversized='x'.repeat(PRIVATE_STORAGE_BYTES);
+  await assert.rejects(empty.storage.set({vocabulary:[{word:'too-large',context:oversized}],settings:{enabled:false}}),/Private storage is full/);
+  assert.deepEqual(empty.stores,{disk:{},memory:{}});
+  const {storage,stores}=fixture();await storage.create(password);await storage.set({vocabulary:[{word:'keep'}],translationHistory:[{source:'keep source'}],keys:{llm:'synthetic-key'},settings:{enabled:true}});
+  const before=structuredClone(stores);
+  await assert.rejects(storage.set({vocabulary:[{word:'too-large',context:oversized}],settings:{enabled:false}}),/Private storage is full/);assert.deepEqual(stores,before);
+  // Individual fields can fit while their combined encrypted envelope cannot.
+  const combined='a'.repeat(4*1024*1024);
+  await assert.rejects(storage.set({vocabulary:[combined],translationHistory:[combined]}),/Private storage is full/);assert.deepEqual(stores,before);
+  await storage.lock();await storage.unlock(password);assert.deepEqual((await storage.get('vocabulary')).vocabulary,[{word:'keep'}]);
+});
+test('aggregate private budget includes existing fields and preserves them on rejection',async()=>{
+  const {storage,stores}=fixture();await storage.set({translationHistory:['a'.repeat(4*1024*1024)]});const before=structuredClone(stores);
+  await assert.rejects(storage.set({vocabulary:['b'.repeat(4*1024*1024)]}),/Private storage is full/);assert.deepEqual(stores,before);
+  await storage.remove('translationHistory');await storage.set({vocabulary:['b'.repeat(4*1024*1024)]});assert.equal((await storage.get('vocabulary')).vocabulary[0].length,4*1024*1024);
+  const legacy=fixture();legacy.stores.disk.translationHistory=['a'.repeat(4*1024*1024)];const legacyBefore=structuredClone(legacy.stores);
+  await assert.rejects(legacy.storage.set({vocabulary:['b'.repeat(4*1024*1024)]}),/Private storage is full/);assert.deepEqual(legacy.stores,legacyBefore);
 });

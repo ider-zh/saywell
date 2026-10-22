@@ -23,6 +23,17 @@ test('sensitive fields and rich editors are excluded from unsafe replacement',()
   assert.equal(applyEditor(document.querySelector('.ProseMirror'),'rich','corrupt'),false);
 });
 
+test('nested editable targets retain sensitive and hidden editing-root exclusions',()=>{
+  const root=document.createElement('div'),nested=document.createElement('span');root.contentEditable='true';nested.setAttribute('contenteditable','true');root.append(nested);document.body.append(root);
+  // JSDOM does not implement isContentEditable; Chromium exposes it on this root.
+  Object.defineProperty(root,'isContentEditable',{value:true});
+  assert.equal(editorFor(nested),root);
+  for(const [name,value]of [['id','api-token'],['name','password'],['autocomplete','cc-number'],['aria-label','API key'],['aria-hidden','true']]){
+    root.setAttribute(name,value);assert.equal(editorFor(nested),null,`${name} must exclude the returned root`);root.removeAttribute(name);
+  }
+  nested.id='secret';assert.equal(editorFor(nested),null);nested.removeAttribute('id');assert.equal(editorFor(nested),root);root.remove();
+});
+
 test('plain Slate reads model text without placeholders/zero-width markers and rejects formatted leaves',()=>{
   const root=document.createElement('div');root.setAttribute('data-slate-editor','true');root.contentEditable='true';document.body.append(root);
   root.innerHTML='<div data-slate-node="element" style="position:relative"><span data-slate-node="text"><span data-slate-leaf="true" style="padding:5px 0"><span data-slate-placeholder="true" contenteditable="false">Placeholder</span><span data-slate-string="true">Hello</span></span></span></div><div data-slate-node="element"><span data-slate-zero-width="z" data-slate-length="0">\uFEFF<br></span></div><div data-slate-node="element"><span data-slate-string="true">World</span></div>';

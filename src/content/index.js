@@ -4,6 +4,7 @@ import { builtin } from '../providers/builtin.js';
 import { editorFor,readEditor,applyEditor,canApply } from './editor.js';
 import { Tooltip } from './tooltip.js';
 import {siteInfo} from './site-controls.js';
+import {shouldSkipAutomaticContent} from '../core/content-filter.js';
 
 if (!globalThis.__inputCoach) {
   globalThis.__inputCoach=true;
@@ -53,16 +54,16 @@ if (!globalThis.__inputCoach) {
       else tip.status('This editor did not accept the replacement. Use Copy instead.');
     }
   });
-  function invalidate(close=true){sequence++;clearTimeout(timer);queuedInput=null;tip.discardQueued();if(close)tip.close();else tip.hideProgress();}
-  function pauseComposition(){sequence++;clearTimeout(timer);tip.close(true);tip.pauseProgress();}
+  function invalidate(close=true){sequence++;clearTimeout(timer);timer=null;queuedInput=null;tip.discardQueued();if(close)tip.close();else tip.hideProgress();}
+  function pauseComposition(){sequence++;clearTimeout(timer);timer=null;tip.close(true);tip.pauseProgress();}
   function count(delta){if(!settings?.analytics || !allowed())return;const day=dayKey();addMetrics(pending[day] ||= emptyMetrics(),delta);clearTimeout(flushTimer);flushTimer=setTimeout(flush,1500);}
   function flush(){const batch=pending;pending={};for(const[day,delta]of Object.entries(batch))send({type:'metric',day,delta}).catch(()=>{});}
   function focus(editor){if(active!==editor){invalidate();active=editor;mode=settings?.mode;}if(settings?.analytics && allowed() && !snapshots.has(editor))snapshots.set(editor,readEditor(editor));}
   async function suggest(manual=false){
-    clearTimeout(timer);queuedInput=null;
+    clearTimeout(timer);timer=null;if(refreshingSettings)return;queuedInput=null;
     if(changingSite || !settings?.enabled || !access() || snoozed() || !active?.isConnected || composing.has(active)){if(!composing.has(active))tip.hideProgress();return;}
     if(!allowed()){tip.hideProgress();if(manual && settings.siteMode==='blacklist')showSitePanel();return;}
-    const editor=active, source=readEditor(editor);if(!source.trim() || source.length>6000){tip.hideProgress();return;}
+    const editor=active, source=readEditor(editor);if(!source.trim() || source.length>6000 || !manual && shouldSkipAutomaticContent(source)){tip.hideProgress();return;}
     const action=routeAction(source,mode || settings.mode,settings.llmEnabled,settings.targetLanguage || 'en');if(action.action==='none'){tip.hideProgress();return;}
     const id=++sequence;
     // getRandomValues also works on granted HTTP pages, where randomUUID is unavailable.
@@ -111,20 +112,29 @@ if (!globalThis.__inputCoach) {
     if(!jobs.length){tip.hideProgress();if(settings.llmNeedsUnlock && action.needsLLM)show({error:'Unlock the vault in Settings to use saved API keys.'});else if(settings.llmNeedsConnection && action.needsLLM)show({error:'Connect the LLM service in Settings before using it.'});return;}
     await Promise.allSettled(jobs);
   }
-  function schedule(text){if(!settings?.autoSuggest || !settings.enabled || !allowed())return;
+  function schedule(text){clearTimeout(timer);timer=null;if(!settings?.autoSuggest || !settings.enabled || !allowed())return;
     if(text.trim().length<2 || text.length>6000)return;
+    if(shouldSkipAutomaticContent(text))return;
+    // A just-enabled lane may arrive after this committed input. Keep its draft
+    // even when the previous policy currently routes it to no action.
+    queuedInput={editor:active,text};if(refreshingSettings)return;
     const action=routeAction(text,mode || settings.mode,settings.llmEnabled,settings.targetLanguage || 'en');if(action.action==='none')return;
     if(action.action==='translate' && !settings.llmEnabled && action.language===(settings.targetLanguage==='zh'?'chinese':'english'))return;
     // Incomplete sentences get a little more quiet time; never request every keypress.
     const delay=settings.debounce+(/[.!?。！？\n]\s*$/.test(text)?0:600);
-    queuedInput={editor:active,text};timer=setTimeout(()=>suggest(false),delay);
+    timer=setTimeout(()=>suggest(false),delay);
     tip.queueProgress(active,{action:action.action,site:currentSite()});
   }
   function input(e,settled=false,candidate){
     const editor=candidate || editorFor(e.composedPath()[0]);if(!editor || applying)return;
     // Keep only trusted committed input while the initial policy lookup is pending.
     // acceptSettings schedules it only after website and provider policies arrive.
-    if(!settings){if(e.isTrusted && !e.isComposing){focus(editor);queuedInput={editor,text:readEditor(editor)};}return;}
+    if(!settings){
+      const composition=compositionStart.get(editor);
+      if((composing.has(editor) || e.isComposing) && composition && e.isTrusted)composition.trustedInput=true;
+      else if(e.isTrusted && !e.isComposing){focus(editor);queuedInput={editor,text:readEditor(editor)};}
+      return;
+    }
     if(settings && !settings.analytics && (!settings.enabled || !settings.autoSuggest)){invalidate();return;}
     if(composing.has(editor) || e.isComposing){
       if(!allowed()){invalidate();return;}focus(editor);pauseComposition();const composition=compositionStart.get(editor);if(composition && e.isTrusted)composition.trustedInput=true;return;
@@ -150,14 +160,15 @@ if (!globalThis.__inputCoach) {
   function finishComposition(editor,composition){
     if(compositionStart.get(editor)!==composition)return;
     composing.delete(editor);compositionStart.delete(editor);if(!settings?.analytics && (!settings?.enabled || !settings?.autoSuggest))return;const after=readEditor(editor);
-    if(settings?.analytics && allowed() && after!==composition.before && (composition.endTrusted || composition.trustedStart && composition.trustedInput)){
+    const trusted=composition.endTrusted || composition.trustedStart && composition.trustedInput;
+    if(settings?.analytics && allowed() && after!==composition.before && trusted){
       count(typingDelta(composition.before,after,'insertCompositionText',composition.data || null));
     }
-    snapshots.set(editor,after);if(allowed())schedule(after);
+    snapshots.set(editor,after);if(trusted && allowed())schedule(after);
   }
   document.addEventListener('compositionstart',e=>{
     const editor=editorFor(e.composedPath()[0]);if(!editor)return;
-    if(!settings){invalidate();composing.add(editor);return;}
+    if(!settings){invalidate();composing.add(editor);compositionStart.set(editor,{before:'',trustedStart:e.isTrusted,trustedInput:false});return;}
     if(!allowed())return;
     const previous=compositionStart.get(editor);if(previous?.ended)finishComposition(editor,previous);
     focus(editor);pauseComposition();composing.add(editor);compositionStart.set(editor,{before:settings.analytics?readEditor(editor):'',trustedStart:e.isTrusted,trustedInput:false});
@@ -177,7 +188,7 @@ if (!globalThis.__inputCoach) {
   document.addEventListener('keydown',e=>{
     if(e.composedPath().includes(tip.host))return;
     if(e.key==='Escape')invalidate();
-    if(e.altKey && e.shiftKey && e.code==='KeyE' && !e.isComposing){e.preventDefault();const editor=editorFor(e.composedPath()[0]);if(editor)focus(editor);suggest(true);}
+    if(e.isTrusted && e.altKey && e.shiftKey && e.code==='KeyE' && !e.isComposing){e.preventDefault();const editor=editorFor(e.composedPath()[0]);if(editor)focus(editor);suggest(true);}
   },true);
   window.addEventListener('scroll',event=>{if((tip.host.isConnected || tip.progressHost?.isConnected) && !event.composedPath().includes(tip.host))tip.requestPosition(active);},{capture:true,passive:true});window.addEventListener('resize',()=>tip.requestPosition(active),{passive:true});
   window.visualViewport?.addEventListener('resize',()=>tip.requestPosition(active),{passive:true});window.visualViewport?.addEventListener('scroll',()=>tip.requestPosition(active),{passive:true});
@@ -201,7 +212,13 @@ if (!globalThis.__inputCoach) {
     if(!snapshot)refreshingSettings=true;
     try{const next=snapshot || await send({type:'public-settings'});if(epoch===settingsEpoch && !changingSite)acceptSettings(next);}
     catch{if(epoch===settingsEpoch)invalidate();}
-    finally{if(epoch===settingsEpoch)refreshingSettings=false;}
+    finally{if(epoch===settingsEpoch){
+      refreshingSettings=false;
+      // Identical/metadata-only replies do not invalidate the draft. Resume it
+      // only if its original timer was consumed while policy was pending.
+      const queued=queuedInput;
+      if(!timer && queued && active===queued.editor && active?.isConnected && !composing.has(active) && readEditor(active)===queued.text)schedule(queued.text);
+    }}
   }
   chrome.runtime.onMessage.addListener(message=>{
     if(message.type==='manual-suggest' && document.hasFocus())suggest(true);
