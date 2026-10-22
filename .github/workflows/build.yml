@@ -17,6 +17,10 @@ jobs:
     name: Test and package extension
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      artifact_name: ${{ steps.version.outputs.artifact_name }}
+      zip_sha256: ${{ steps.package.outputs.zip_sha256 }}
     env:
       CI: 'true'
       WRANGLER_SEND_METRICS: 'false'
@@ -32,6 +36,9 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
+      - name: Validate package and release versions
+        id: version
+        run: node scripts/release-version.mjs
       - name: Install Chromium and system dependencies
         run: npx playwright install --with-deps chromium
       - name: Test and build
@@ -39,7 +46,13 @@ jobs:
       - name: Validate Worker bundle without deploying
         run: npm run worker:check
       - name: Package extension
-        run: npm run package
+        id: package
+        shell: bash
+        env:
+          ARTIFACT_NAME: ${{ steps.version.outputs.artifact_name }}
+        run: |
+          npm run package
+          echo "zip_sha256=$(sha256sum "release/$ARTIFACT_NAME" | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
       - name: Upload extension ZIP
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
@@ -58,3 +71,45 @@ jobs:
             performance-results/
           if-no-files-found: ignore
           retention-days: 7
+
+  github-release:
+    name: Publish tagged GitHub Release
+    needs: extension
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Check out release metadata
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Require a commit merged into the default branch
+        shell: bash
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: git merge-base --is-ancestor "$GITHUB_SHA" "origin/$DEFAULT_BRANCH"
+      - name: Download the tested installation ZIP
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: ${{ needs.extension.outputs.artifact_name }}
+          path: release
+          skip-decompress: true
+      - name: Verify ZIP and publish GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_VERSION: ${{ needs.extension.outputs.version }}
+          ARTIFACT_NAME: ${{ needs.extension.outputs.artifact_name }}
+          ZIP_SHA256: ${{ needs.extension.outputs.zip_sha256 }}
+        run: |
+          set -euo pipefail
+          printf '%s  %s\n' "$ZIP_SHA256" "release/$ARTIFACT_NAME" | sha256sum --check --strict
+          flags=()
+          if [[ "$RELEASE_VERSION" == 0.* ]]; then flags+=(--prerelease); fi
+          gh release create "$RELEASE_TAG" "release/$ARTIFACT_NAME" --verify-tag --draft "${flags[@]}" --title "Saywell $RELEASE_TAG" --notes-file .github/release-notes.md
+          gh release edit "$RELEASE_TAG" --draft=false

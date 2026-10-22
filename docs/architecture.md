@@ -1,5 +1,9 @@
 # Architecture
 
+## CI and version delivery
+
+Ordinary push/PR/manual workflows build read-only and retain temporary artifacts. Version-tag pushes add a dependent GitHub Release job with isolated contents:write. Package/manifest/tag versions must match; the tagged commit must be merged into the default branch. The release job downloads the same run's raw ZIP without extraction, verifies its build SHA-256, creates a draft with the asset and publishes it. Existing releases are not overwritten. 0.x releases are prereleases. No store/cloud credentials or Chrome submission/deployment API is present. See releasing.md for operator steps and the separate Web Store API setup; AGENTS.md defines agent maintenance boundaries.
+
 ## Store preparation and private storage
 
 The current release candidate keeps the existing disclosed single-action website/Cloudflare consent flow. Browser-local MT is attempted where available; MyMemory and official keyed/self-hosted MT require a separate connection. Experimental Google web/Bing/Edge HTTP adapters are absent from the production provider import graph. Known saved consent is cleared and their options hidden, with worker-side tests refused. Historical protocol fixtures remain source-only. No cloud deployment or store submission is automated.

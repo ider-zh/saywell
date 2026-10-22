@@ -64,6 +64,8 @@ Remove-Item Env:SAYWELL_STORE_ASSETS
 
 [GitHub Actions](.github/workflows/build.yml) 在 push、PR 或手动运行时执行测试、构建、Worker dry-run、ZIP 打包，保留安装包 14 天、测试/性能证据 7 天。不需要 Cloudflare 密钥，不自动部署后端，也不提交/发布 Chrome Web Store。
 
+推送与 package/manifest 版本一致的 `v<版本号>` 标签时，检查成功后由独立 job 发布 GitHub Release，附同次构建的 ZIP 并核对 SHA-256。0.x 标记预发布；普通分支构建不会生成 Release。版本、标签和商店 API 账号准备详见[发布指南](docs/releasing.md)。agent 维护与交付约定见 [AGENTS.md](AGENTS.md)。
+
 政策文件推送到 main 后，公开 GitHub 文件链接可用作隐私政策 URL；提交前用退出登录的浏览器验证可达性。账户注册、联系邮箱、2FA、发布者身份、服务和模型使用条件、实际线上初次使用仍由维护者核对。未获明确授权不得提交审核、发布或部署。
 
 Cloudflare 登录、配置、额度及部署操作见 [cloudflare-deployment.md](docs/cloudflare-deployment.md)。Workers Free 的共享限额不等于无限请求，状态检查不执行推理，自动化测试不消耗真实额度。

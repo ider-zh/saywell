@@ -12,7 +12,7 @@
 
 ## 安装并开始使用
 
-1. 打开[下载页面](https://github.com/ider-zh/saywell/actions/workflows/build.yml)，选择最新一条成功的构建，在页面下方 **Artifacts** 下载 `saywell-版本号.zip`。下载需要登录 GitHub。
+1. 在[版本下载页面](https://github.com/ider-zh/saywell/releases)下载 `saywell-版本号.zip`，不要选择 Source code。若尚无已发布版本，或想测试最新改动，可打开[预览构建](https://github.com/ider-zh/saywell/actions/workflows/build.yml)，选择成功的构建，在 **Artifacts** 下载安装包；此下载需要登录 GitHub。
 2. 解压到一个以后不会随意移动的文件夹。
 3. 在 Chrome 打开 `chrome://extensions`，或在 Edge 打开 `edge://extensions`。开启「开发者模式」，点击「加载已解压的扩展程序」，选择包含 `manifest.json` 的文件夹。
 4. 欢迎页打开后，阅读处理说明，点击 **「同意并启用 Saywell」**，批准浏览器的网页访问权限。

@@ -12,7 +12,7 @@ For Chrome and Edge. **This is a preview; it is not yet listed in the Chrome Web
 
 ## Install and start writing
 
-1. Open the [download page](https://github.com/ider-zh/saywell/actions/workflows/build.yml), select the latest successful build, and download `saywell-VERSION.zip` under **Artifacts**. GitHub sign-in is required for the download.
+1. Download `saywell-VERSION.zip` from [Releases](https://github.com/ider-zh/saywell/releases), rather than Source code. If no version has been released yet, or you want the latest changes, open [preview builds](https://github.com/ider-zh/saywell/actions/workflows/build.yml), select a successful build and download the package under **Artifacts**; that download requires GitHub sign-in.
 2. Extract it into a folder you intend to keep.
 3. Open `chrome://extensions` in Chrome or `edge://extensions` in Edge. Enable **Developer mode**, select **Load unpacked**, and choose the folder containing `manifest.json`.
 4. Read the welcome disclosure, select **Agree and enable Saywell**, and approve website access.

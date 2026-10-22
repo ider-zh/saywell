@@ -1,5 +1,7 @@
 # Milestones and release gates
 
+2026-10-22 tagged delivery: add a version-consistent GitHub Release job dependent on the existing test/package workflow, verify the tested ZIP checksum and default-branch ancestry, and isolate write permissions. Document Artifacts versus Releases and Chrome Web Store API account setup. Add agent-led maintenance/delivery rules in AGENTS.md. No tag, release, Chrome review submission or cloud service is created merely by pushing this workflow change.
+
 2026-10-22 store remediation: implemented session-only private records plus an optional password-wrapped AES-GCM vault, protected migration, locked-state boundaries, wrong-password recovery and explicit erase. Added bilingual policies/bundled pages, single-step disclosure, store form/reviewer materials and asset capture. Experimental web adapters are removed from the production import graph and legacy consent cannot revive them. Corrected Qwen model help. Rewrote both READMEs for users and moved development/CI/operations to DEVELOPMENT.md; added the delegated GitHub banner. Store submission and deployment remain disabled; owner account/terms/live-service checks are listed in store materials.
 
 Validation: `npm run check` passed 108 functional tests, 1 performance test and 62 Chromium scenarios; `npm run package` passed. Synthetic screenshots and local documentation links were reviewed. Initial/refreshed policy lookup no longer loses queued committed input, and vault deletion resets remember-key preferences.

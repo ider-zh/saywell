@@ -1,5 +1,13 @@
 # Phase 0 — technical validation
 
+## Tagged GitHub Releases and agent maintenance
+
+The workflow now separates temporary CI Artifacts from version-tag-triggered GitHub Releases. A tagged package must match package/manifest versions, pass the existing suite and Worker dry-run, and belong to default-branch history. The isolated write-enabled job downloads the same run's raw ZIP with skip-decompress, checks SHA-256, creates a draft with the package, then publishes; no clobber or tag creation is used. 0.x is a prerelease. Branch/PR/manual CI cannot publish. Tests cover mismatched/malformed tags and invalid Chrome versions. The workflow passed actionlint 1.7.12, whose downloaded binary was checked against the official GitHub release SHA-256. No live release or Chrome API mutation is part of the local check.
+
+Agent rules now cover autonomous reversible work, user/developer documentation, version/file consistency, release authorization boundaries, verifiable status, pinned Actions, credential handling and end-to-end authorized delivery. Chrome API setup instructions use current official v2/service-account documentation; publish with STAGED_PUBLISH still submits review and is explicitly excluded while submission is forbidden.
+
+Validation: `npm run check` passed 110 functional tests, 1 isolated performance test and 62 Chromium scenarios; `npm run package` passed. Final lockfile-version checks passed both targeted release tests and the CLI accepted the matching tag while rejecting a mismatched tag. Documentation relative links and diff whitespace checks passed. The tagged publication job remains unexecuted until an authorized real tag is pushed; a successful ordinary branch build does not prove it has published a Release.
+
 ## Store remediation and user documentation
 
 The store candidate adds bilingual public policy sources and bundled offline pages, prominent one-step disclosure, private-storage protection, submission text/permission and data-field guidance, reviewer instructions, padded 128px artwork, promo and actual-extension screenshots using synthetic text. GitHub branding is separately delivered at 1280x640; READMEs are user guides, with build/test/CI/operations moved to DEVELOPMENT.md. No store submission or cloud deployment is performed.
