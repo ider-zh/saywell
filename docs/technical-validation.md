@@ -1,5 +1,9 @@
 # Phase 0 — technical validation
 
+## 0.1.2 delivery result — 2026-10-23
+
+Commit 24568f9f8d6fd4cab33fff82cf78c364c7ad4439 and tag v0.1.2 were pushed. Main CI 39832398980 passed; tag run 39832399174 passed build/package and GitHub Release. The public v0.1.2 installation ZIP was downloaded without credentials: 276,548 bytes, 25 files, root manifest 0.1.2 and both policies verified. SHA-256 `95989ec24eed7324ac9665a4a1d16d5f484b328e433b6cdf59616f0128ced725` matched GitHub's asset digest. Store job 120013806876 stopped before upload because another revision awaits review/staged publication; the overall tag run is therefore failed despite successful GitHub delivery. No review withdrawal, store upload/submission for 0.1.2, tag replacement or Cloudflare deployment occurred. See releasing.md for links and recovery boundary. Preparation/review entries below are earlier checkpoints.
+
 ## 0.1.2 release preparation — 2026-10-23
 
 The owner requested committing/pushing this reviewed work and bumping a new version. The next patch is 0.1.2, aligned across package, lockfile and manifest. Bilingual release notes describe the local content filter and reviewed fixes. The earlier review-only checkpoint below precedes this authorization. Fresh versioned checks/package and GitHub CI/tag/asset verification are required before reporting delivery; Chrome submission remains the separate already-enabled tag workflow, and Cloudflare is not deployed.

@@ -1,5 +1,7 @@
 # Milestones and release gates
 
+2026-10-23 delivery result: 0.1.2 commit/tag pushed; main CI 39832398980 and tag build/GitHub Release jobs passed. Actual public ZIP download, digest and root manifest verification passed. Store delivery stopped before upload because another revision is pending review/staged publication; it needs that external state resolved before a separate retry, without moving the tag or replacing the asset. No store withdrawal or Cloudflare deployment was performed. Preparation and local-only review checkpoints below precede this delivery; see releasing.md for exact evidence.
+
 2026-10-23 release request: the owner authorized committing/pushing the reviewed changes and a new version. Prepare patch 0.1.2 with aligned package/lock/manifest and bilingual release notes, rerun versioned verification/package, then push main and the matching tag. Inspect main/tag CI and verify the actual downloadable asset. Prior "local only" statements below describe the completed review checkpoint before this request. Chrome Store delivery uses its existing explicit gate; pending other-version review must not be withdrawn automatically. Cloudflare deployment is outside this request.
 
 0.1.2 local release gate passed: 141 functional tests, 1 isolated performance test, 70 Chromium cases, package/version validation and diff checks. The 25-file installation ZIP has its 0.1.2 manifest at root. The remaining delivery gate is successful remote CI and verification of the published asset, distinct from this local checkpoint.

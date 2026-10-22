@@ -1,5 +1,7 @@
 # Architecture
 
+0.1.2 delivery verified on 2026-10-23: main CI and the tag build/Release jobs passed, and the actual published ZIP matched its GitHub digest and root manifest. The independent Store job enforced the other-pending-revision guard and stopped before upload, leaving the GitHub Release intact. The overall tag run records that Store failure rather than claiming complete publication. See releasing.md for IDs, checksum and recovery boundary; preparation below is historical.
+
 Release preparation on 2026-10-23: reviewed runtime changes are targeted for patch 0.1.2 after the owner's push/version request. Existing isolated tag-delivery jobs and checksum guards apply; a source push alone does not publish. Review validation below is the pre-release checkpoint, distinct from the required versioned CI/asset verification.
 
 The 0.1.2 local gate passed the full 141 functional / 1 performance / 70 browser suite and 25-file package validation. Remote CI and the downloadable artifact remain independent delivery checks.

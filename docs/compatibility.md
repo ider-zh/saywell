@@ -1,5 +1,7 @@
 # Compatibility and manual verification
 
+0.1.2 GitHub delivery is verified as of 2026-10-23: main CI/build/Release passed and the downloaded 25-file installation ZIP matched its public digest and manifest version. Chrome Store 0.1.2 delivery is blocked by an existing revision awaiting review/staged publication; the workflow stopped before upload and did not withdraw that revision. GitHub availability does not establish Store availability. See releasing.md for exact run/asset evidence; preparation entries below are earlier checkpoints.
+
 Patch 0.1.2 is being prepared from the reviewed fixes after the owner's push/new-version request on 2026-10-23. Local checks below refer to the review checkpoint until fresh versioned tests and GitHub delivery are verified. Store submission/publication and Cloudflare deployment remain separate results.
 
 Fresh 0.1.2 local tests/package passed: 141 functional tests, 1 isolated performance test and 70 Chromium scenarios. Remote CI/package download and any Store response need their own verification; real Windows IME, logged-in sites and Edge remain manual boundaries.

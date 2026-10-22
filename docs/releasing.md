@@ -2,6 +2,12 @@
 
 这三个结果需要分别验证：Actions 构建成功只代表检查和打包通过；Artifacts 是临时构建下载；GitHub Release 是项目版本下载；Chrome 商店还有独立的上传、审查与发布流程。
 
+## 0.1.2 交付记录 — 2026-10-23
+
+提交 `24568f9f8d6fd4cab33fff82cf78c364c7ad4439` 与 `v0.1.2` 已推送。[main CI 39832398980](https://github.com/ider-zh/saywell/actions/runs/39832398980) 成功；[标签流水线 39832399174](https://github.com/ider-zh/saywell/actions/runs/39832399174) 的构建与 GitHub Release job 成功。[v0.1.2 Release](https://github.com/ider-zh/saywell/releases/tag/v0.1.2) 已公开为预发布版，安装包 `saywell-0.1.2.zip` 为 276,548 字节。实际重新下载后，SHA-256 为 `95989ec24eed7324ac9665a4a1d16d5f484b328e433b6cdf59616f0128ced725`，与 GitHub 资产摘要一致；包内 25 个文件、根目录 manifest 版本 0.1.2 及双语隐私页面均核对通过。
+
+商店 job 120013806876 返回 `Another version is awaiting review or staged publication`，在上传前停止，因此标签流水线整体标为失败，但 GitHub Release 已成功。0.1.2 未上传/提交商店，没有撤回已有审核或修改商店保护规则。需要先处理已有待审/待发布版本，再单独恢复商店交付；不得因此重建标签或覆盖 Release 安装包。Cloudflare 未部署。
+
 ## GitHub Release
 
 普通 push、PR 和手动运行只执行 CI，不发布 Release。推送 `v<版本号>` 标签后，现有 build workflow 检查标签、package.json、package-lock.json 和 manifest.json 一致，完成全部测试、Worker dry-run 与打包，再进入独立发布 job。发布提交必须已经合入默认分支。
