@@ -1,147 +1,82 @@
 # Saywell
 
-**[简体中文](README.md) · [English](README.en.md)**
+![Saywell](assets/branding/saywell-github-banner.jpg)
 
-[![Build](https://github.com/ider-zh/saywell/actions/workflows/build.yml/badge.svg)](https://github.com/ider-zh/saywell/actions/workflows/build.yml)
+**[简体中文](README.md) · English**
 
-Translation, polishing and vocabulary tips, right where you type.
+Translate and polish where you type.
 
-Saywell is a Chrome and Edge extension that translates Chinese or mixed input into English, supports translation back into Chinese, and helps improve English writing. Machine translation and an LLM run in parallel so you can see a useful result before the slower response arrives.
+Unsure how to phrase an English message? Write your thought in Chinese, or draft in English, and pause for a suggestion. Keep the original, copy the result or choose Apply. Saywell never sends the message for you.
 
-This is a developer preview installed by loading an unpacked extension. It is not yet published in extension stores. The repository's primary README is [Simplified Chinese](README.md).
+For Chrome and Edge. **This is a preview; it is not yet listed in the Chrome Web Store.**
 
-## Install: one permission step
+## Install and start writing
 
-1. Open [Build Saywell](https://github.com/ider-zh/saywell/actions/workflows/build.yml), choose the latest successful run and download `saywell-VERSION.zip` under **Artifacts**. Artifact downloads require GitHub sign-in.
-2. Extract the ZIP. Open `chrome://extensions` in Chrome or `edge://extensions` in Edge.
-3. Enable **Developer mode**, choose **Load unpacked**, and select the extracted folder containing `manifest.json`.
-4. The welcome page opens automatically. Click **Allow and start using Saywell** and approve the browser's website-access request.
-5. Type in a regular website input and pause, or press **Alt + Shift + E** to request a suggestion. On macOS, use **Command + Shift + E**.
+1. Open the [download page](https://github.com/ider-zh/saywell/actions/workflows/build.yml), select the latest successful build, and download `saywell-VERSION.zip` under **Artifacts**. GitHub sign-in is required for the download.
+2. Extract it into a folder you intend to keep.
+3. Open `chrome://extensions` in Chrome or `edge://extensions` in Edge. Enable **Developer mode**, select **Load unpacked**, and choose the folder containing `manifest.json`.
+4. Read the welcome disclosure, select **Agree and enable Saywell**, and approve website access.
+5. Type a sentence in an ordinary website input and pause. Refresh an already open page if needed.
 
-The initial authorization enables free AI translation, polishing, vocabulary tips and keyless MT together. No account or API key is needed. The disclosure identifies the services that receive input. Existing normal tabs are activated where the browser permits it; refresh website tabs after updating the extension to load its new scripts.
+**Basic free AI needs no account or API key: one permission action gets you started.** If access is declined, the toolbar shows `!` with a retry action. You can also enable individual sites from Settings or the popup.
 
-If permission is denied or later revoked, the toolbar shows **!**, with a prominent retry action in Settings and the popup.
+## Translate, polish and choose what to use
 
-You can also [build from source](#build-from-source) and load the local `dist/` folder.
+- **Chinese/English translation:** English is the initial target. Change it using the Saywell toolbar popup.
+- **Clearer phrasing:** Writing in the target language automatically offers polishing. The tooltip also lets you choose Translate, Polish or Explain.
+- **Results as they arrive:** Available browser-local MT or separately connected MT can run alongside AI. Once AI finishes, earlier MT folds away and remains available to expand.
+- **Explicit replacement:** Only Apply replaces the draft. Older suggestions cannot overwrite changed input; complex editors may offer Copy instead.
 
-## Everyday use
+Use **Alt + Shift + E** for a manual suggestion, or **Command + Shift + E** on macOS.
 
-- **Translation and polish:** Auto follows the input language. The target defaults to English and can be switched to Chinese in the popup or Settings. Same-language input uses the LLM for polishing. Translate, Polish and Explain can also be selected on the card.
-- **Parallel results:** MT and the LLM start together. A card appears only when useful text is available. The LLM becomes primary when ready, with MT collapsed underneath. If one lane fails, the other result remains available.
-- **Explicit replacement:** Only **Apply** replaces the draft, with another exact-source check immediately beforehand. Saywell never submits forms or sends messages. Unsupported complex editors offer **Copy**.
-- **Vocabulary:** English results can highlight up to three useful words or phrases. Review explanations and examples, mark words known or save them. Attaching a source sentence to a vocabulary item requires a separate consent checkbox.
-- **Movable card:** Drag its title bar and select Small, Medium or Large. Position and size are remembered per hostname and kept within the viewport after window resizing.
-- **Position pin:** A miniature pin appears after manual movement, indicating a remembered position for that site. Click it to unpin and resume automatic positioning beside the input.
-- **Temporary pause:** The small clock in the card offers 1 hour, 4 hours or until the next local midnight, for this website or all websites. Suggestions and input statistics pause until expiry; resume early from the extension popup.
-- **Sentence practice:** Choose **Practice this sentence** under a result and retype directly in the card. Character differences have red highlights; case, spacing and punctuation use a subtle dotted style. The selected sentence stays fixed until practice closes, including when AI finishes later. Practice never edits the website draft, calls a provider or stores the attempt.
-- **Autosave:** Valid Settings edits save after about 650 ms, followed by a completion toast. Invalid values and failed writes keep the current input and show an error.
+![Saywell translation and polishing beside an input, using demonstration text](store/assets/screenshot-translation-zh.png)
 
-The console supports Simplified Chinese and English, following the browser language by default. UI language and translation target are independent.
+## Make the expression your own
 
-## Website permissions and defaults
+Choose **Practice this sentence** under a result and retype inside the tooltip. Character differences are highlighted; case and punctuation differences use a lighter style. Practice does not change the website draft, upload your attempt or save it.
 
-**Blacklist mode** is the default: Saywell runs on granted websites except blocked hosts. Open **Website settings** in the card to block the current site, stopping both suggestions and local counting there. Whitelist mode is also available and processes only listed hosts.
+Expand vocabulary tips to see meanings and examples or add a word to your collection. Saving the original sentence context requires a separate explicit choice.
 
-Each hostname can override the action, target language, saved LLM profile or MT-only mode, and MT engine. Fields can inherit global defaults. Changes take effect from the next suggestion. Selecting a profile does not grant service consent or change global activation for other sites.
+## Make it fit your workflow
 
-Password, payment and recognizable secret fields are skipped. Protected browser pages and extension stores cannot run the extension.
+Choose Small, Medium or Large, or drag the tooltip header. A miniature pin shows that the website position is remembered; select it to return to automatic positioning.
 
-## Free AI and translation services
+Use the clock entry to pause for **1 hour, 4 hours or until tomorrow**, on this site or everywhere. Website settings also let you block a site or give it its own target language, default action and service configuration.
 
-### Saywell Free AI
+The interface supports Chinese and English and follows your browser by default. UI language and translation target are independent.
 
-Default API base: `https://saywell.9992099.xyz/v1`. The sponsored Cloudflare service uses `@cf/qwen/qwen3-30b-a3b-fp8`, with non-thinking mode by default and no user API key. Fixed synthetic tasks were tested before switching; see the [model evaluation](docs/model-evaluation.md).
+## History and privacy
 
-This prerelease service has a shared daily free allocation, resetting at **08:00 Asia/Shanghai**. When exhausted, Saywell shows a notice and pauses repeated AI requests while retaining MT. The service may change or end around release. See [Cloudflare deployment](docs/cloudflare-deployment.md) for operating details.
+Open **Translation history** from the sidebar or popup to search, remove, clear or export recent translations. The rolling limit starts at **100 records** and can be changed or switched off.
 
-**Legacy address migration:** Reload the extension: known built-in Saywell profiles follow the current `saywell.9992099.xyz` endpoint, and old backups cannot restore obsolete service metadata. A hostname change clears consent; click **Connect and test** to restore access. Other providers and custom addresses are preserved.
+**History, vocabulary and statistics initially last only for the current browser session.** Browser restart or extension reload, update or disable clears session records. For retention across restart, create a **Local vault** in Settings. It keeps encrypted records on your device and requires your password after restart. Remembering API keys also requires an unlocked vault. Forgotten passwords cannot be recovered.
 
-### Machine translation
+After remote-processing consent, a typing pause may automatically send the **entire current editor draft** to connected services. Default free AI uses Cloudflare Workers AI; browser-local translation does not upload text. Multiple connected services and enabled fallback can send the same draft to more than one authorized provider.
 
-| Engine | Setup |
-| --- | --- |
-| Google web, Bing web, Microsoft Edge | Bundled keyless adapters; experimental web interfaces subject to network access, rate limits and protocol changes |
-| MyMemory | Keyless service with daily/IP and input-length limits |
-| Browser on-device translation | Tried first when the browser and language model are available; support is feature-detected |
-| LibreTranslate, Microsoft Azure, Google Cloud | Configure your server or credentials |
+Password fields and common sensitive identifiers are excluded, but confidential text in ordinary fields cannot be reliably recognized. Pause or block sensitive websites. History contains source/results; separate local statistics contain numeric aggregates and hostnames and can be disabled. There are no ads or cloud history sync.
 
-Reorder fallback, disable it, or stop individual services in Settings. Every remote hop requires existing text consent and current browser host permission; fallback never authorizes another service.
+Read the [English Privacy Policy](docs/privacy-policy.en.md) · [中文隐私政策](docs/privacy-policy.zh-CN.md).
 
-### Bring your own LLM
+## Free AI and your own services
 
-Adapters support OpenAI-compatible APIs, OpenAI, DeepSeek, Xiaomi MiMo, SiliconFlow, Ollama and Gemini. Save up to 20 profiles, each with its own endpoint, key, thinking settings and request cap. One is globally active, with optional per-site overrides.
+Saywell Free AI has a shared daily allocation resetting at **08:00 Asia/Shanghai**. A quota notice appears when exhausted. Supported local MT or separately connected MT can still work. Availability and free allocation may change; unlimited or permanent free access is not promised.
 
-Select a provider, enter a model and required credentials, then click **Connect and test** to request endpoint access, authorize text processing and send a fixed synthetic test. Connecting another profile does not activate it globally. Usage and charges follow the chosen provider.
+Already have a provider account? Add OpenAI, DeepSeek, Xiaomi MiMo, SiliconFlow, Gemini, Ollama or a compatible service in Settings, save multiple configurations and choose which to use. MT can separately connect to MyMemory, LibreTranslate, Google Cloud or Microsoft Azure. Provider prices and data rules apply.
 
-## Configuration backup and privacy
+## Common questions
 
-### Local translation history
+**No suggestion?** Check website permission and whether the site is blocked or paused, then refresh it. Browser internal pages, extension stores and other restricted pages are unsupported.
 
-Open **Translation history** from the sidebar or popup. By default it retains the latest **100 source texts and results**, combining MT and AI responses into one entry. Search source/result text or hostnames, remove individual entries, clear all history, or export the current search results as JSON.
+**AI says it is not connected?** Select the configuration in Settings and choose Connect and test. Custom services may need their key entered again; remembered keys require vault unlock.
 
-Choose a rolling limit of **50, 100, 200, 500 or 1,000**, or turn recording off. Lowering the limit immediately removes older records; disabling recording retains existing entries until separately cleared. Storage limits can cause earlier eviction. More entries load as you scroll. History stays on this device, excludes provider credentials, and is separate from numeric analytics and configuration backups.
+**No machine translation?** Browser-local MT depends on browser/model availability; other MT requires a separate connection. Free AI can translate and polish independently.
 
-### Configuration backup
+**How do I update?** Extract new files over the same extension folder, select Reload on the Saywell extension card, and refresh the website. Create a vault first if you want to retain private records; session-only records clear on reload.
 
-Settings → Local data & privacy → **Configuration backup** exports and imports JSON. Export first saves valid pending edits. Backups include global preferences, LLM profiles, website defaults, card positions/sizes and UI language, but **exclude API keys, provider text consent and practice data**.
+**How do I move settings?** Use Configuration backup in Settings. It excludes keys, vault data and history. Reconnect providers when prompted after import.
 
-Built-in Saywell defaults follow the app version. Only their reference IDs are backed up to retain active/site selections; URLs, models and other built-in values are omitted. Old backups also use current app defaults. Custom profiles remain portable. After import, use **Connect and test** when prompted; Saywell Free AI needs no key, while custom services may need their key re-entered. New exports use v2; v1/v2 imports are supported.
+**Found a problem?** [Open an issue](https://github.com/ider-zh/saywell/issues) with the website, browser and steps. Do not include private drafts or API keys.
 
-Import has a review step and replaces configuration after confirmation, retaining activity and vocabulary. Provider consent must be renewed; missing website permissions require an explicit request. Matching local profile identities/endpoints can retain their keys; replaced identities lose theirs.
+---
 
-- Remote processing sends the focused editor text and task settings. Provider data policies apply. Some adapters, including Google web and MyMemory, send text in URL query parameters.
-- Keys default to browser-session storage. Optional remembered keys use **unencrypted local storage**. Keys never enter content scripts or exports.
-- Local analytics retain numeric totals and hostnames for up to 366 days, without drafts or keystroke logs. English word counts approximate independent word starts. Chinese counts are recorded on IME commit, excluding provisional pinyin and cancelled input.
-- Pausing translation leaves analytics running; analytics can be disabled separately. Sensitive content in ordinary textboxes cannot be reliably detected.
-
-## Build from source
-
-Use Node.js **24** and npm:
-
-```sh
-npm ci
-npx playwright install --with-deps chromium
-npm run check
-npm run package
-```
-
-`npm run check` runs Node tests, builds the extension, then runs Chromium browser tests. Tests use synthetic text and localhost API fixtures. Output is `dist/`, with an installation archive at `release/saywell-VERSION.zip`. Versions in `package.json` and `manifest.json` must match.
-
-For repeated local testing, load this project's `dist` directory once in `chrome://extensions`. After `npm run build`, click Reload on the Saywell card and refresh the test webpage; no repeated ZIP extraction, removal or folder selection is needed. Keep using the same directory to preserve the installation identity. Switching from an older extracted directory may create a new installation: export its configuration first, then import and reconnect permissions/keys. ZIP files are for distribution.
-
-The check also enforces fixed input, practice-diff, scroll and active-process-ring performance budgets. Run `npm run test:performance` for isolated core timing; CI retains measurement JSON alongside browser evidence. See [performance findings and budgets](docs/performance-review.md) for methods and limits.
-
-| Command | Purpose |
-| --- | --- |
-| `npm run build` | Bundle the extension and generate local logo assets |
-| `npm run test` | Run Node tests |
-| `npm run test:browser` | Run Chromium extension tests |
-| `npm run preview` | Design preview without live input processing or extension settings storage |
-| `npm run worker:check` | Validate the Worker bundle without deployment or inference |
-| `npm run worker:deploy` | Explicitly deploy the sponsored backend using the operator's Cloudflare login |
-
-Set `INPUT_COACH_BROWSER` to an absolute executable path to use an existing Playwright-compatible Chromium. The extension has no runtime npm dependencies and loads no remote scripts.
-
-## Automatic builds
-
-Every push, pull request, or manual **Run workflow** automatically:
-
-1. Installs Node.js 24, locked npm dependencies and Chromium.
-2. Runs the full test suite, builds the extension and validates Worker bundling.
-3. Uploads the extension ZIP under the run's **Artifacts**, retained for 14 days.
-4. Retains browser reports and screenshots for diagnosis for 7 days.
-
-Workflow: [`.github/workflows/build.yml`](.github/workflows/build.yml). No Cloudflare secret is required. It does not deploy the Worker or publish to an extension store.
-
-## Development status and documentation
-
-This remains a developer preview. Ordinary inputs and selected plain rich-text structures have automated coverage; formatted text, mentions and widgets may require Copy. Authenticated ChatGPT, x.com and Baidu composers, as well as real Windows IME behavior, still need validation in their actual environments.
-
-- [Compatibility and manual checks](docs/compatibility.md)
-- [Technical validation](docs/technical-validation.md)
-- [Architecture](docs/architecture.md)
-- [Milestones](docs/development-plan.md)
-- [Cloudflare deployment](docs/cloudflare-deployment.md)
-- [Development instructions](AGENTS.md)
-
-The logo pairs cream and warm-orange speech shapes on forest green, representing a thought and its clearer expression. Its shared source is `src/brand/mark.js`; the build produces SVG, multiple PNG sizes and ICO. Icons offer localized hover help. After 180ms of quiet typing, one continuous activity ring spans the remaining input delay and processing wait until the first result arrives.
+Want to contribute? See the [developer guide](DEVELOPMENT.md) (中文).
