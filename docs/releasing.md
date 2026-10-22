@@ -52,6 +52,8 @@ Chrome 商店不在项目 Actions 中直接提供构建服务。自动化从 CI 
 
 当前接入状态：上述五项参数已在 GitHub 保存，商店服务账号、限定 WIF 信任和仓库身份连接已在维护者确认后完成，联系邮箱已验证，Chrome Web Store API 已启用。[只读认证检查 39766610592](https://github.com/ider-zh/saywell/actions/runs/39766610592) 实际通过了短期令牌交换与扩展状态读取。商店已接受 0.1.0 草稿；中英说明、三张截图、图标、宣传图、隐私声明及审核说明已保存，分发为免费、公开、所有地区。首次 API 交付使用 0.1.1，审核和上线结果以该标签流水线及[商店状态页](https://chrome.google.com/webstore/devconsole/9d6a0fe8-8300-4796-a4ab-443193dd814d/ofofhnaikohfnbgbckghgccobafkfeig/edit/status)为准。
 
+首次交付已验证：[v0.1.1 流水线 39771550482](https://github.com/ider-zh/saywell/actions/runs/39771550482) 的构建、GitHub Release、商店交付三个 job 全部成功。[GitHub Release](https://github.com/ider-zh/saywell/releases/tag/v0.1.1) 已公开，安装包下载后确认包含 25 个文件，根目录 manifest 的版本为 0.1.1，SHA-256 为 `6e9cdcfd450283a8010ecea084cb573df78a9b8b4126c05bd97fff7c366b5b7d`，与 GitHub 资产摘要一致。商店状态和 Package 页面分别确认 Pending review、版本 0.1.1，尚无已发布版本；按 DEFAULT_PUBLISH 等待 Google 审核通过后自动上架。后续版本继续递增并推送匹配标签，不重复提交这个版本。
+
 服务账号的 Workload Identity User 成员限定为 `principalSet://iam.googleapis.com/projects/92552286779/locations/global/workloadIdentityPools/saywell-github/attribute.repository_id/1426643821`。提供方使用 GitHub issuer `https://token.actions.githubusercontent.com`，默认 audience，映射 `google.subject=assertion.sub` 和 `attribute.repository_id=assertion.repository_id`，并使用以下 CEL 条件：
 
 ```text

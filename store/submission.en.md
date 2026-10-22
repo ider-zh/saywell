@@ -1,6 +1,6 @@
 # Saywell Chrome Web Store submission text
 
-Status: the owner authorized automated delivery and the first submission on 2026-10-22. Contact email, publisher service-account/WIF connection and the real status-only CI check are verified. The store draft ID is ofofhnaikohfnbgbckghgccobafkfeig. Initial draft upload used 0.1.0; first API delivery uses 0.1.1. Review/publication must be verified from that tagged run and the dashboard.
+Status: the owner authorized automated delivery and the first submission on 2026-10-22. Contact email, publisher service-account/WIF connection and the real status-only CI check are verified. The extension ID is ofofhnaikohfnbgbckghgccobafkfeig. Initial draft upload used 0.1.0; first API delivery successfully submitted 0.1.1. The dashboard confirms Pending review and no published version yet; automatic publication is requested after approval.
 
 ## Listing
 

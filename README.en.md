@@ -8,7 +8,7 @@ Translate and polish where you type.
 
 Unsure how to phrase an English message? Write your thought in Chinese, or draft in English, and pause for a suggestion. Keep the original, copy the result or choose Apply. Saywell never sends the message for you.
 
-For Chrome and Edge. **This is a preview; it is not yet listed in the Chrome Web Store.**
+For Chrome and Edge. **Version 0.1.1 is a preview submitted to Chrome Web Store review; it is not yet listed.** You can use the GitHub installation package below while review is pending.
 
 ## Install and start writing
 

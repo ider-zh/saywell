@@ -1,6 +1,6 @@
 # Saywell Chrome Web Store 提交材料
 
-状态：维护者已于 2026-10-22 授权配置自动发布和首次提交。邮箱验证、商店服务账号/WIF 认证及只读状态检查已完成，草稿 ID 为 `ofofhnaikohfnbgbckghgccobafkfeig`。0.1.0 用于创建草稿；首次 CI 交付使用 0.1.1，审核/上线以标签日志及后台状态为准。英文表单文案见 [submission.en.md](submission.en.md)。
+状态：维护者已于 2026-10-22 授权配置自动发布和首次提交。邮箱验证、商店服务账号/WIF 认证及只读状态检查已完成，扩展 ID 为 `ofofhnaikohfnbgbckghgccobafkfeig`。0.1.0 用于创建草稿；首次 CI 交付 0.1.1 已成功提交，后台确认 Pending review，尚未上架，审核通过后自动发布。英文表单文案见 [submission.en.md](submission.en.md)。
 
 ## 商店文案
 
@@ -63,4 +63,4 @@ Saywell 在你正在使用的网页输入框旁提供中英翻译、润色和词
 - 核对 Cloudflare 部署、模型使用条款及额度/运营安排；配置任意第三方服务的用户仍需遵守该服务条款。未核实的实验性网页接口不得重新开放。
 - 验证一次真实的无账号初次使用；自动化测试只使用合成文本和模拟 API，不代表线上额度或服务 SLA。
 - 首次草稿已上传 release/saywell-0.1.0.zip；API 交付使用经过测试的新版本 release/saywell-0.1.1.zip。内部 manifest.json 在 ZIP 根目录。不要上传整个源码目录或带外层目录的 GitHub 下载压缩包。
-- 尚未提交审核。完成以上核对和账号验证后，可按已有首次发布授权继续；涉及云端访问权限或后台正式提交的 Computer Use 操作遵守执行前确认要求。
+- 0.1.1 已通过标签流水线提交审核，勿重复提交或覆盖同版本。后续涉及云端访问权限或后台正式提交的 Computer Use 操作仍遵守执行前确认要求。

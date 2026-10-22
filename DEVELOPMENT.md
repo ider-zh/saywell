@@ -66,7 +66,7 @@ Remove-Item Env:SAYWELL_STORE_ASSETS
 
 推送与 package/manifest 版本一致的 `v<版本号>` 标签时，检查成功后由独立 job 发布 GitHub Release，附同次构建的 ZIP 并核对 SHA-256。0.x 标记预发布；普通分支构建不会生成 Release。版本、标签和商店 API 账号准备详见[发布指南](docs/releasing.md)。agent 维护与交付约定见 [AGENTS.md](AGENTS.md)。
 
-Chrome 商店使用独立 `chrome-store.yml`，经维护者授权接入 WIF 短期身份。`CWS_ENABLED=true` 已配置；匹配版本标签在完整检查和 GitHub Release 成功后调用商店交付。手动运行只读状态，真实认证检查见 [39766610592](https://github.com/ider-zh/saywell/actions/runs/39766610592)。它不会跳过审核或把等待审核误报为上线。首次 API 交付版本为 0.1.1，商店条目、变量和后台状态入口见发布指南。
+Chrome 商店使用独立 `chrome-store.yml`，经维护者授权接入 WIF 短期身份。`CWS_ENABLED=true` 已配置；匹配版本标签在完整检查和 GitHub Release 成功后调用商店交付。手动运行只读状态，真实认证检查见 [39766610592](https://github.com/ider-zh/saywell/actions/runs/39766610592)。首次 [v0.1.1 交付 39771550482](https://github.com/ider-zh/saywell/actions/runs/39771550482) 的三个 job 均成功，GitHub 安装包已验证，商店后台确认 0.1.1 为 Pending review。审核通过后由 Google 自动发布；等待审核不等于上线。商店条目、变量和后台状态入口见发布指南。
 
 政策文件推送到 main 后，公开 GitHub 文件链接可用作隐私政策 URL；提交前用退出登录的浏览器验证可达性。账户注册、联系邮箱、2FA、发布者身份、服务和模型使用条件、实际线上初次使用仍由维护者核对。未获明确授权不得提交审核、发布或部署。
 
