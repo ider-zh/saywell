@@ -1,6 +1,6 @@
 # Saywell Chrome Web Store 提交材料
 
-状态：维护者已于 2026-10-22 授权配置自动发布和首次提交。账号验证、商店草稿及 CI 认证接入仍待完成，尚未提交审核。执行时核对实际后台表单与最终安装包。英文表单文案见 [submission.en.md](submission.en.md)。
+状态：维护者已于 2026-10-22 授权配置自动发布和首次提交。邮箱验证、商店服务账号/WIF 认证及只读状态检查已完成，草稿 ID 为 `ofofhnaikohfnbgbckghgccobafkfeig`。0.1.0 用于创建草稿；首次 CI 交付使用 0.1.1，审核/上线以标签日志及后台状态为准。英文表单文案见 [submission.en.md](submission.en.md)。
 
 ## 商店文案
 
@@ -26,7 +26,7 @@ Saywell 在你正在使用的网页输入框旁提供中英翻译、润色和词
 
 单一用途：在网页输入框中辅助中英表达，通过翻译、润色以及与结果直接相关的词汇和句子练习改善写作。
 
-建议类别：Productivity（以提交后台现有类别为准）。主语言：简体中文；另添加英文商店文案。
+已选类别：Productivity → Tools。主语言：Chinese (China)；当前无包内商店元数据本地化，说明字段使用中文在前、英文在后的双语文案。
 
 ## 隐私和支持链接
 
@@ -39,7 +39,7 @@ Saywell 在你正在使用的网页输入框旁提供中英翻译、润色和词
 
 ## 隐私表单和权限说明
 
-按实际处理行为申报 Website content、Personal communications、User activity、Web history（记录网站域名，即使没有 history 权限）、Authentication information（自行配置的 API Key）。即使仅在本地处理也要披露；不要选择“不处理用户数据”。根据后台当前分类逐项核对输入草稿可能包含的个人数据。限定用途、禁止出售、禁止无关用途和信用用途的认证必须与实际代码、政策一致。
+已按后台九个类别披露：Website content、Personal communications、Personally identifiable information、Health information、Financial and payment information、Authentication information、Location、Web history、User activity。普通输入草稿可能包含个人、医疗、财务或通讯文字；常见敏感字段排除不能保证识别这些普通文字。Authentication information 包括用户自配 API Key；Location 对应远程服务接收的连接 IP，不代表申请 GPS；Web history 对应本地域名记录；User activity 对应本地输入数字汇总和交互处理。没有新增健康、支付、定位或浏览历史 API。即使仅在本地处理也要披露，不能选择“不处理用户数据”。三项限定用途认证与代码及政策一致。若未来收窄真实处理范围，再同时更新表单和政策。
 
 远程代码选 No：所有扩展逻辑在包内，API 和 AI 输出仅作为数据校验并显示，不执行输出代码。服务器处理文本不等于扩展执行远程脚本。实验性 Google/Bing/Edge 网页接口在此版关闭，原有授权也不会重新启用它们。
 
@@ -62,5 +62,5 @@ Saywell 在你正在使用的网页输入框旁提供中英翻译、润色和词
 - 核对公开政策、数据类别、服务接收方、支持链接和图片均与最终 ZIP 一致。
 - 核对 Cloudflare 部署、模型使用条款及额度/运营安排；配置任意第三方服务的用户仍需遵守该服务条款。未核实的实验性网页接口不得重新开放。
 - 验证一次真实的无账号初次使用；自动化测试只使用合成文本和模拟 API，不代表线上额度或服务 SLA。
-- 上传 release/saywell-0.1.0.zip；内部 manifest.json 在 ZIP 根目录。不要上传整个源码目录或带外层目录的 GitHub 下载压缩包。
+- 首次草稿已上传 release/saywell-0.1.0.zip；API 交付使用经过测试的新版本 release/saywell-0.1.1.zip。内部 manifest.json 在 ZIP 根目录。不要上传整个源码目录或带外层目录的 GitHub 下载压缩包。
 - 尚未提交审核。完成以上核对和账号验证后，可按已有首次发布授权继续；涉及云端访问权限或后台正式提交的 Computer Use 操作遵守执行前确认要求。

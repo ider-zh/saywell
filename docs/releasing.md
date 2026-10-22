@@ -44,14 +44,20 @@ Chrome 商店不在项目 Actions 中直接提供构建服务。自动化从 CI 
 
 | 变量 | 内容 |
 | --- | --- |
-| `CWS_SERVICE_ACCOUNT` | 已在 Chrome Cloud 页面确认的 `saywell@ider-01.iam.gserviceaccount.com` |
-| `CWS_WORKLOAD_IDENTITY_PROVIDER` | 实际创建的 `projects/项目数字编号/locations/global/workloadIdentityPools/池/providers/提供方`；不要使用服务账号的 Unique ID 代替项目编号 |
-| `CWS_PUBLISHER_ID` | 商店后台显示的 Publisher ID |
-| `CWS_EXTENSION_ID` | 已创建商店条目的 32 位 a–p 扩展 ID |
-| `CWS_ENABLED` | 完成账号绑定、状态验证后才在仓库层设为 `true`，开启标签自动提交 |
+| `CWS_SERVICE_ACCOUNT` | `saywell@ider-01.iam.gserviceaccount.com` |
+| `CWS_WORKLOAD_IDENTITY_PROVIDER` | `projects/92552286779/locations/global/workloadIdentityPools/saywell-github/providers/github-actions` |
+| `CWS_PUBLISHER_ID` | `9d6a0fe8-8300-4796-a4ab-443193dd814d` |
+| `CWS_EXTENSION_ID` | `ofofhnaikohfnbgbckghgccobafkfeig` |
+| `CWS_ENABLED` | 已完成只读认证验证并设为 `true`；关闭标签自动提交时改为 `false` |
 
-当前接入状态：已确认 Google Cloud 项目编号 `92552286779`、现有服务账号和 Publisher ID `9d6a0fe8-8300-4796-a4ab-443193dd814d`。Chrome 窗口移至可捕获区域后已准备 WIF 表单：池 `saywell-github`、提供方 `github-actions`、GitHub OIDC issuer、subject/repository_id 映射及仓库/工作流条件；尚未保存。商店服务账号字段已填写，尚未添加。云端访问授权等待维护者的执行前确认；联系邮箱验证需要账号持有人完成。首次 ZIP 的原生文件选择器无法由当前 Computer Use helper 定位，已请求持有人选择安装包。扩展 ID、GitHub 配置、真实状态验证和首次提交仍待完成，`CWS_ENABLED` 未开启；不能把代码已准备描述为商店 CI/CD 已接通。
+当前接入状态：上述五项参数已在 GitHub 保存，商店服务账号、限定 WIF 信任和仓库身份连接已在维护者确认后完成，联系邮箱已验证，Chrome Web Store API 已启用。[只读认证检查 39766610592](https://github.com/ider-zh/saywell/actions/runs/39766610592) 实际通过了短期令牌交换与扩展状态读取。商店已接受 0.1.0 草稿；中英说明、三张截图、图标、宣传图、隐私声明及审核说明已保存，分发为免费、公开、所有地区。首次 API 交付使用 0.1.1，审核和上线结果以该标签流水线及[商店状态页](https://chrome.google.com/webstore/devconsole/9d6a0fe8-8300-4796-a4ab-443193dd814d/ofofhnaikohfnbgbckghgccobafkfeig/edit/status)为准。
 
-WIF 保存后，向该服务账号授予 `roles/iam.workloadIdentityUser`，成员应为 `principalSet://iam.googleapis.com/projects/92552286779/locations/global/workloadIdentityPools/saywell-github/attribute.repository_id/1426643821`。该授权也需要执行前确认。提供方资源名为 `projects/92552286779/locations/global/workloadIdentityPools/saywell-github/providers/github-actions`，仅在实际创建成功后用于 GitHub 配置。首次草稿已上传的版本通常不能再通过 API 重传；按后台状态选择直接提交已核对的草稿，或增加经过验证的新版本后走标签流程，不能覆盖同版本安装包。
+服务账号的 Workload Identity User 成员限定为 `principalSet://iam.googleapis.com/projects/92552286779/locations/global/workloadIdentityPools/saywell-github/attribute.repository_id/1426643821`。提供方使用 GitHub issuer `https://token.actions.githubusercontent.com`，默认 audience，映射 `google.subject=assertion.sub` 和 `attribute.repository_id=assertion.repository_id`，并使用以下 CEL 条件：
+
+```text
+assertion.repository_id == '1426643821' && assertion.repository_owner_id == '9734108' && (assertion.ref == 'refs/heads/main' || assertion.ref.startsWith('refs/tags/v')) && (assertion.workflow_ref.startsWith('ider-zh/saywell/.github/workflows/build.yml@') || assertion.workflow_ref.startsWith('ider-zh/saywell/.github/workflows/chrome-store.yml@'))
+```
+
+项目数字编号是 `92552286779`，不要用服务账号 Unique ID 代替。草稿已经上传的版本不能通过 API 作为新包重复上传；增加经过验证的新版本后走标签流程，不能覆盖同版本安装包。已有其他待审版本时流程会停止，不自动撤回审核。
 
 不部署 Cloudflare。商店材料见 [中文提交材料](../store/submission.zh-CN.md)和[英文提交材料](../store/submission.en.md)。

@@ -1,6 +1,6 @@
 # Saywell Chrome Web Store submission text
 
-Status: the owner authorized automated delivery and the first submission on 2026-10-22. Account verification, the store draft and CI authentication are still pending; no review submission is confirmed. Check the live dashboard fields against the final package before submitting.
+Status: the owner authorized automated delivery and the first submission on 2026-10-22. Contact email, publisher service-account/WIF connection and the real status-only CI check are verified. The store draft ID is ofofhnaikohfnbgbckghgccobafkfeig. Initial draft upload used 0.1.0; first API delivery uses 0.1.1. Review/publication must be verified from that tagged run and the dashboard.
 
 ## Listing
 
@@ -48,7 +48,7 @@ Support: https://github.com/ider-zh/saywell/issues
 
 Publish the policy files to main and verify logged-out access before submitting. Do not use the bundled chrome-extension:// policy URL as the public dashboard URL.
 
-Review the current dashboard definitions and disclose Website content, Personal communications, User activity, Web history (recorded hostnames) and Authentication information (user-configured API credentials) as applicable. Local-only handling also counts. Review any additional personal-data classifications applicable to editor text. Do not select no user data. Certify no sale/unrelated use/credit use only after verifying consistency with the actual release and policy.
+The actual dashboard declares all nine categories: Website content, Personal communications, Personally identifiable information, Health information, Financial and payment information, Authentication information, Location, Web history and User activity. Arbitrary eligible draft text may contain personal, medical, financial or communication content; common sensitive-field exclusions cannot classify all free text. API credentials, local hostname/activity records and provider connection IP are also handled. Location refers to IP metadata, not GPS access. These declarations do not introduce health/payment/location/browser-history APIs. Local-only handling also counts. All three Limited Use certifications match the release and policy.
 
 ## Reviewer instructions
 
@@ -58,4 +58,4 @@ The shared free AI service has a daily allocation and an explicit quota/reset no
 
 Optional persistence: Settings → Local data & privacy → Local vault. Use a 12–256-character test password, confirm it and create a vault. Lock/unlock demonstrates protected storage. Restart requires unlock; keyless free translation remains usable. Never provide real personal data or keys for review.
 
-Use the 128px icon, 440×280 promo and 1280×800 screenshots listed in the Chinese preparation file. Publisher registration, verified contact/2-Step Verification, identity/trader requirements, model/provider terms and the final live smoke test require owner verification. No store submission has been performed.
+The 128px icon, 440×280 promo and three 1280×800 screenshots are saved in the draft, with Productivity/Tools, Chinese (China), a Chinese-first bilingual description and free/public/all-region distribution. Reviewer instructions use the dashboard's 500-character field and require no credentials. One synthetic keyless custom-domain inference succeeded; this does not establish remaining quota or an SLA. Publisher identity/trader declarations remain the owner's responsibility. Submission/publication is a separate result recorded by the tagged delivery pipeline and dashboard.
