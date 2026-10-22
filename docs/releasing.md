@@ -29,11 +29,29 @@ Chrome 商店不在项目 Actions 中直接提供构建服务。自动化从 CI 
 
 1. 在 [Google Cloud Console](https://console.cloud.google.com/) 选择项目，启用 Chrome Web Store API，创建服务账号。
 2. 在 Chrome Web Store Developer Dashboard 的 **Account** 区添加服务账号邮箱。当前官方文档说明每个发布者只能关联一个服务账号；如果已有配置，先核对，不覆盖。
-3. 从 **Publisher → Settings** 取得 Publisher ID，并从扩展详情取得 Extension ID。发布者设置页 URL 不能替代扩展 ID。若尚无扩展条目，先在后台准备草稿及商店资料，仍不要提交审核。
+3. 从 **Publisher → Settings** 取得 Publisher ID，并从扩展详情取得 Extension ID。发布者设置页 URL 不能替代扩展 ID。若尚无扩展条目，先在后台准备草稿及商店资料，完成身份验证和资料核对后按维护者的发布授权提交。
 4. 为 GitHub Actions 配置服务账号认证。优先使用受仓库、分支/标签和发布环境约束的 Workload Identity Federation / 短期凭据；如果采用长期 JSON key 或 OAuth refresh token，只存 GitHub 的受保护 Secrets，不发到聊天、不提交到源码。
 
 [服务账号官方说明](https://developer.chrome.com/docs/webstore/service-accounts)包含 Google Cloud 与后台关联步骤。使用 API 前还要核对两步验证、商店文案与隐私表单。
 
 **上传包与提交审核是不同 API 操作。** `items:upload` 更新包；`items:publish` 通常提交审核并在通过后按发布方式上线。`STAGED_PUBLISH` 仍然会提交审核，只是通过后等待发布，不能用来满足“暂不提交审核”。自动化不能绕过 Google 审查。
 
-当前仓库未接入商店身份凭据、上传或 publish 操作；GitHub 标签发布不会触发商店审核，也不部署 Cloudflare。下一步接入需要维护者完成上述账号设置，再明确选择“仅上传草稿”还是“提交审核”。商店材料见 [中文提交材料](../store/submission.zh-CN.md)和[英文提交材料](../store/submission.en.md)。
+维护者于 2026-10-22 明确要求自动发布 Chrome 商店，仓库已准备独立的 `chrome-store.yml`。普通 main/PR 构建不会上传；当仓库变量 `CWS_ENABLED=true` 且版本标签的完整构建与 GitHub Release 成功后，调用独立商店流程。它核对同次 ZIP 的 SHA-256/manifest，查询当前版本和待审状态，上传并等待处理成功，再用 `DEFAULT_PUBLISH`、`skipReview:false`、`blockOnWarnings:true` 提交审核。审核通过后由 Google 发布；CI 返回等待审核不能被称为已经上线。
+
+手动运行 **Chrome Web Store delivery** 只检查账号/扩展状态，不上传和提交，用于验证接入。Google auth Action 使用 WIF 生成 600 秒访问令牌，不创建 JSON 密钥或凭据文件。身份授权只授予服务账号的 Workload Identity User，不授予项目 Owner/Editor；身份提供方应限定 GitHub owner ID `9734108`、repository ID `1426643821`、本仓库可信工作流及 main/版本标签，拒绝其他仓库和 PR。自动化使用 GitHub Environment `chrome-web-store`；不要为不可信分支开放发布。
+
+需在 GitHub Repository / Environment Variables 设置以下非密钥配置：
+
+| 变量 | 内容 |
+| --- | --- |
+| `CWS_SERVICE_ACCOUNT` | 已在 Chrome Cloud 页面确认的 `saywell@ider-01.iam.gserviceaccount.com` |
+| `CWS_WORKLOAD_IDENTITY_PROVIDER` | 实际创建的 `projects/项目数字编号/locations/global/workloadIdentityPools/池/providers/提供方`；不要使用服务账号的 Unique ID 代替项目编号 |
+| `CWS_PUBLISHER_ID` | 商店后台显示的 Publisher ID |
+| `CWS_EXTENSION_ID` | 已创建商店条目的 32 位 a–p 扩展 ID |
+| `CWS_ENABLED` | 完成账号绑定、状态验证后才在仓库层设为 `true`，开启标签自动提交 |
+
+当前接入状态：已确认 Google Cloud 项目编号 `92552286779`、现有服务账号和 Publisher ID `9d6a0fe8-8300-4796-a4ab-443193dd814d`。Chrome 窗口移至可捕获区域后已准备 WIF 表单：池 `saywell-github`、提供方 `github-actions`、GitHub OIDC issuer、subject/repository_id 映射及仓库/工作流条件；尚未保存。商店服务账号字段已填写，尚未添加。云端访问授权等待维护者的执行前确认；联系邮箱验证需要账号持有人完成。首次 ZIP 的原生文件选择器无法由当前 Computer Use helper 定位，已请求持有人选择安装包。扩展 ID、GitHub 配置、真实状态验证和首次提交仍待完成，`CWS_ENABLED` 未开启；不能把代码已准备描述为商店 CI/CD 已接通。
+
+WIF 保存后，向该服务账号授予 `roles/iam.workloadIdentityUser`，成员应为 `principalSet://iam.googleapis.com/projects/92552286779/locations/global/workloadIdentityPools/saywell-github/attribute.repository_id/1426643821`。该授权也需要执行前确认。提供方资源名为 `projects/92552286779/locations/global/workloadIdentityPools/saywell-github/providers/github-actions`，仅在实际创建成功后用于 GitHub 配置。首次草稿已上传的版本通常不能再通过 API 重传；按后台状态选择直接提交已核对的草稿，或增加经过验证的新版本后走标签流程，不能覆盖同版本安装包。
+
+不部署 Cloudflare。商店材料见 [中文提交材料](../store/submission.zh-CN.md)和[英文提交材料](../store/submission.en.md)。

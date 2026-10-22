@@ -1,0 +1,78 @@
+name: Chrome Web Store delivery
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      version:
+        type: string
+        required: true
+      artifact_name:
+        type: string
+        required: true
+      zip_sha256:
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: chrome-web-store-delivery
+  cancel-in-progress: false
+
+jobs:
+  store:
+    name: Authenticate and deliver to Chrome
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: chrome-web-store
+    steps:
+      - name: Check out verified release source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Validate store configuration
+        env:
+          CWS_PUBLISHER_ID: ${{ vars.CWS_PUBLISHER_ID }}
+          CWS_EXTENSION_ID: ${{ vars.CWS_EXTENSION_ID }}
+          CWS_SERVICE_ACCOUNT: ${{ vars.CWS_SERVICE_ACCOUNT }}
+          CWS_WORKLOAD_IDENTITY_PROVIDER: ${{ vars.CWS_WORKLOAD_IDENTITY_PROVIDER }}
+        run: |
+          node --input-type=module -e 'for (const key of ["CWS_PUBLISHER_ID","CWS_EXTENSION_ID","CWS_SERVICE_ACCOUNT","CWS_WORKLOAD_IDENTITY_PROVIDER"]) if (!process.env[key]) throw new Error("Missing configuration: "+key)'
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install pinned dependencies
+        run: npm ci
+      - name: Download the tested package
+        if: github.event_name != 'workflow_dispatch'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: ${{ inputs.artifact_name }}
+          path: release
+          skip-decompress: true
+      - name: Get a short-lived Chrome Web Store token
+        id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ vars.CWS_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.CWS_SERVICE_ACCOUNT }}
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/chromewebstore
+          access_token_lifetime: 600s
+          create_credentials_file: false
+          export_environment_variables: false
+      - name: Check status or submit the tagged version
+        env:
+          CWS_OPERATION: ${{ github.event_name == 'workflow_dispatch' && 'status' || 'publish' }}
+          CWS_PUBLISHER_ID: ${{ vars.CWS_PUBLISHER_ID }}
+          CWS_EXTENSION_ID: ${{ vars.CWS_EXTENSION_ID }}
+          CWS_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+          CWS_ZIP: release/${{ inputs.artifact_name }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          ZIP_SHA256: ${{ inputs.zip_sha256 }}
+        run: node scripts/chrome-store.mjs

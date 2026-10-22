@@ -8,6 +8,6 @@ Download `saywell-VERSION.zip` from Assets, extract it, then choose **Load unpac
 
 Free AI has shared limits; local translation depends on browser availability. Private history is session-only unless you create a local vault. Updating/reloading clears session data and locks existing vaults.
 
-此 GitHub Release 不代表已上架 Chrome Web Store，也不会自动提交商店审核。
+此 GitHub Release 不代表已上架 Chrome Web Store。启用独立商店自动化后，版本标签可另行触发提交审核；上线以商店审核与实际状态为准。
 
-This GitHub Release does not submit the extension for Chrome Web Store review or publish it there.
+This GitHub Release does not establish Chrome Web Store availability. When the separate store automation is enabled, the version tag can also submit a package for review. Store approval and actual publication remain separate states.

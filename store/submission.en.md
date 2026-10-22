@@ -1,6 +1,6 @@
 # Saywell Chrome Web Store submission text
 
-Status: prepared for publisher verification. Do not submit or publish automatically.
+Status: the owner authorized automated delivery and the first submission on 2026-10-22. Account verification, the store draft and CI authentication are still pending; no review submission is confirmed. Check the live dashboard fields against the final package before submitting.
 
 ## Listing
 
