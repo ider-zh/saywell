@@ -276,7 +276,7 @@ export class Tooltip {
     card.append(toolbar);select.disabled=Boolean(site?.blocked);
     if(site?.blocked)card.append(node('p',siteText(site,'This website is blocked. Translation and local analytics are paused here.'),{class:'site-blocked',role:'status'}));
     if(busy)card.append(node('div','Working on your sentence…',{class:'busy',role:'status'}));
-    if(error){card.append(node('p',site?siteText(site,error):error,{class:'note error',role:'status'}));const open=this.button('Open Settings',()=>chrome.runtime.sendMessage({type:'open-settings'}));card.append(open);}
+    if(error){card.append(node('p',site?siteText(site,error):error,{class:'note error',role:'status'}));const open=this.button(siteText(site || {},'Open Settings'),()=>chrome.runtime.sendMessage({type:'open-settings'}));card.append(open);}
     if(localAvailable){card.append(this.button('Prepare on-device',this.handlers.onPrepare));card.append(node('p','Your browser may download a language model. Text stays on this device.',{class:'note'}));}
     if(result){
       const sentence=node('div',undefined,{class:'suggestion'});this.renderSentence(sentence,result);card.append(sentence);
@@ -303,6 +303,7 @@ export class Tooltip {
   updateParallel({mtResult,pendingLLM,llmError,mtError,site}){
     if(!this.parallelArea)return;const area=this.parallelArea;area.replaceChildren();
     const label=message=>site?siteText(site,message):message;
+    if(site?.llmNeedsConnection){const note=node('p',label('AI is not connected. Connect the selected configuration to restore AI translation and polishing.'),{class:'note'}),connect=this.button(label('Connect AI in Settings'),()=>chrome.runtime.sendMessage({type:'open-settings'}));connect.className='mini-entry';area.append(note,connect);}
     if(pendingLLM)area.append(node('p',label('LLM refinement is still running…'),{class:'note',role:'status'}));
     if(llmError)area.append(node('p',`${label('LLM unavailable; showing MT.')} ${label(llmError)}`,{class:'note',role:'status'}));
     if(mtError && !pendingLLM)area.append(node('p',label('MT unavailable; showing LLM.'),{class:'note'}));

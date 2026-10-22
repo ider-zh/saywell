@@ -1,4 +1,4 @@
-import {DEFAULTS,mergeSettings,validateSettings} from './settings.js';
+import {DEFAULTS,mergeSettings,validateSettings,builtinLlmProfile,isBuiltinLlmProfile} from './settings.js';
 import {validateSitePreferences} from './site-preferences.js';
 import {validTooltipPosition} from './tooltip-position.js';
 import {validTooltipSize} from './tooltip-size.js';
@@ -35,14 +35,17 @@ export function parseConfigBackup(text){
   if(typeof text!=='string')throw new Error('Choose a Saywell configuration JSON file.');
   if(new TextEncoder().encode(text).length>CONFIG_FILE_LIMIT)throw new Error('Configuration file is too large (maximum 1 MiB).');
   let data;try{data=JSON.parse(text);}catch{throw new Error('Invalid configuration JSON.');}
-  if(!plain(data) || data.format!=='saywell-configuration' || data.version!==1)throw new Error('Unsupported configuration file or version.');
-  fields(data,['format','version','exportedAt','settings','uiLanguage','sitePreferences','tooltipPositions','tooltipSizes']);
+  if(!plain(data) || data.format!=='saywell-configuration' || ![1,2].includes(data.version))throw new Error('Unsupported configuration file or version.');
+  fields(data,['format','version','exportedAt','settings','uiLanguage','sitePreferences','tooltipPositions','tooltipSizes',...(data.version===2?['builtinLlmIds']:[])]);
   if(data.exportedAt!==undefined && (typeof data.exportedAt!=='string' || data.exportedAt.length>64 || !Number.isFinite(Date.parse(data.exportedAt))))throw new Error('Unsupported configuration file or version.');
   const raw=data.settings;fields(raw,settingKeys);
-  if(!Array.isArray(raw.llmProfiles) || !raw.llmProfiles.length || raw.llmProfiles.length>20 || typeof raw.activeLlmId!=='string')throw new Error('Invalid LLM configurations.');
-  for(const profile of raw.llmProfiles)fields(profile,profileKeys);
+  if(!Array.isArray(raw.llmProfiles) || data.version===1 && !raw.llmProfiles.length || raw.llmProfiles.length>20 || typeof raw.activeLlmId!=='string')throw new Error('Invalid LLM configurations.');
+  for(const profile of raw.llmProfiles){fields(profile,profileKeys);if(typeof profile.id!=='string' || !/^[a-zA-Z0-9-]{1,64}$/.test(profile.id))throw new Error('Invalid LLM configurations.');}
+  const references=data.version===2?data.builtinLlmIds:[];
+  if(!Array.isArray(references) || references.some(id=>typeof id!=='string' || !/^[a-zA-Z0-9-]{1,64}$/.test(id)) || new Set([...references,...raw.llmProfiles.map(p=>p.id)]).size!==references.length+raw.llmProfiles.length || references.length+raw.llmProfiles.length>20 || !references.length && !raw.llmProfiles.length)throw new Error('Invalid LLM configurations.');
   if(raw.basic!==undefined){fields(raw.basic,Object.keys(DEFAULTS.basic));for(const[id,config]of Object.entries(raw.basic))fields(config,basicKeys(id));}
-  const settings=validateSettings(mergeSettings(raw));
+  const profiles=[...references.map(id=>builtinLlmProfile(id)),...raw.llmProfiles.map(profile=>isBuiltinLlmProfile(profile)?builtinLlmProfile(profile.id):profile)];
+  const settings=validateSettings(mergeSettings({...raw,llmProfiles:profiles}));
   for(const key of ['enabled','autoSuggest','analytics'])if(typeof settings[key]!=='boolean')throw new Error('Invalid configuration preference.');
   for(const config of [...settings.llmProfiles,...Object.values(settings.basic)]){
     if(typeof config.endpoint!=='string' || config.endpoint.length>500)throw new Error('Enter an absolute endpoint URL.');
@@ -61,15 +64,15 @@ export function parseConfigBackup(text){
 export function exportConfigBackup(raw,metadata={}){
   const settings=mergeSettings(raw),portable=pick(settings,settingKeys);
   portable.basic=Object.fromEntries(Object.entries(settings.basic).map(([id,config])=>[id,pick(config,basicKeys(id))]));
-  portable.llmProfiles=settings.llmProfiles.map(profile=>pick(profile,profileKeys));
-  const file={format:'saywell-configuration',version:1,exportedAt:new Date().toISOString(),settings:portable,
+  portable.llmProfiles=settings.llmProfiles.filter(profile=>!isBuiltinLlmProfile(profile)).map(profile=>pick(profile,profileKeys));
+  const file={format:'saywell-configuration',version:2,exportedAt:new Date().toISOString(),settings:portable,builtinLlmIds:settings.llmProfiles.filter(isBuiltinLlmProfile).map(profile=>profile.id),
     uiLanguage:metadata.uiLanguage || 'auto',sitePreferences:metadata.sitePreferences || {},tooltipPositions:metadata.tooltipPositions || {},tooltipSizes:metadata.tooltipSizes || {}};
   // Enforce the same schema on generated files, without spreading arbitrary storage fields.
   const checked=parseConfigBackup(JSON.stringify(file));
   return {...file,sitePreferences:checked.sitePreferences,tooltipPositions:checked.tooltipPositions,tooltipSizes:checked.tooltipSizes};
 }
 export function configSummary(data){
-  return {profiles:data.settings.llmProfiles.map(({id,name,provider,model})=>({id,name,provider,model})),activeLlmId:data.settings.activeLlmId,
+  return {profiles:data.settings.llmProfiles.map(profile=>{const {id,name,provider,model}=profile;return {id,name,provider,model,builtin:isBuiltinLlmProfile(profile)};}),activeLlmId:data.settings.activeLlmId,
     mode:data.settings.mode,targetLanguage:data.settings.targetLanguage,siteMode:data.settings.siteMode,
     sites:Object.keys(data.sitePreferences).length,positions:Object.keys(data.tooltipPositions).length,sizes:Object.keys(data.tooltipSizes).length,
     origins:data.settings.siteOrigins,uiLanguage:data.uiLanguage};

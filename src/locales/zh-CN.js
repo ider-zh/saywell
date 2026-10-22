@@ -1,5 +1,9 @@
 // English source messages are stable keys. Provider/user content is never translated here.
 export default {
+  'Built-in Saywell Free AI follows this app version and is not restored from backup data. Custom LLM configurations are portable.':'内置 Saywell 免费服务配置随应用版本更新，不从备份恢复默认数据；用户自建的大模型配置会正常备份与恢复。',
+  'App default · uses installed version':'应用默认配置 · 使用当前安装版本',
+  '“{name}” is enabled but not connected. Click Connect and test. Configuration backups do not include API keys or service authorization.':'“{name}”已启用但尚未连接。请点击“连接并测试”。配置备份不包含 API 密钥和服务授权。',
+  'Configuration imported. Click Connect and test to restore the selected LLM.':'配置已导入，请点击“连接并测试”恢复所选大模型。',
   'Saywell · Translate, polish and practise your writing':'Saywell · 随写随译、润色表达、练习写作',
   'Temporarily paused until {time}':'临时暂停至 {time}','Resume this website':'恢复当前网站','Resume all websites':'解除全局暂停','Temporary pause removed.':'已解除临时暂停。',
   'Translation history · Saywell':'翻译历史 · Saywell','Translation history':'翻译历史','History ↗':'历史 ↗','Only on this device':'仅保存在本机',

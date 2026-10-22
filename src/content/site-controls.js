@@ -2,9 +2,14 @@ import {resolveLanguage} from '../core/locale.js';
 import {blockedRule} from '../core/language.js';
 export function siteInfo(host,settings,browserLanguage='en'){
   const rule=blockedRule(host,settings);
-  return {host,mode:settings.siteMode || 'blacklist',blocked:Boolean(rule),rule,canRemove:rule?.toLowerCase()===host.toLowerCase(),language:resolveLanguage(settings.uiLanguage,browserLanguage),preferences:settings.sitePreferences || {},defaults:settings.globalDefaults || {},profiles:settings.llmChoices || []};
+  return {host,mode:settings.siteMode || 'blacklist',blocked:Boolean(rule),rule,canRemove:rule?.toLowerCase()===host.toLowerCase(),language:resolveLanguage(settings.uiLanguage,browserLanguage),preferences:settings.sitePreferences || {},defaults:settings.globalDefaults || {},profiles:settings.llmChoices || [],llmNeedsConnection:Boolean(settings.llmNeedsConnection)};
 }
 const chinese={
+  'AI is not connected. Connect the selected configuration to restore AI translation and polishing.':'大模型尚未连接，请连接所选配置以恢复 AI 翻译与润色。',
+  'Connect AI in Settings':'去设置连接大模型',
+  'Open Settings':'打开设置',
+  'Polish and Explain need a connected, enabled LLM service.':'润色与解释需要先在设置中连接并启用大模型服务。',
+  'Connect the LLM service in Settings before using it.':'请先在设置中连接大模型服务。',
   'Saywell · Translate, polish and practise your writing':'Saywell · 随写随译、润色表达、练习写作',
   'Translation is queued. This ring covers the typing delay and processing wait.':'翻译已排队，圆环会持续覆盖输入延迟和接口处理等待。',
   'Polishing is queued. This ring covers the typing delay and processing wait.':'润色已排队，圆环会持续覆盖输入延迟和接口处理等待。',

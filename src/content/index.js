@@ -71,7 +71,7 @@ if (!globalThis.__inputCoach) {
     const show=value=>{if(valid())tip.show(editor,{mode:mode || settings.mode,site:currentSite(),...value});};
     // No empty loading card: both lanes start now and publish independently when usable text arrives.
     const pair=translationPair(source,settings.targetLanguage || 'en');
-    const useMT=action.action!=='explain' && pair.source!==pair.target,useLLM=settings.llmEnabled || action.needsLLM;
+    const useMT=action.action!=='explain' && pair.source!==pair.target,useLLM=!settings.llmNeedsConnection && (settings.llmEnabled || action.needsLLM);
     if(useMT || useLLM)tip.queueProgress(editor,{waiting:true,site:currentSite()});
     const results={},errors={},done={mt:!useMT,llm:!useLLM};let displayed=null,counted=false;
     const publish=async()=>{
@@ -107,7 +107,7 @@ if (!globalThis.__inputCoach) {
       if(valid())return send({type:'suggest',lane:'mt',text:source,mode:mode || settings.mode});
     }));
     if(useLLM)jobs.push(run('llm',()=>send({type:'suggest',lane:'llm',text:source,mode:mode || settings.mode})));
-    if(!jobs.length){tip.hideProgress();return;}
+    if(!jobs.length){tip.hideProgress();if(settings.llmNeedsConnection && action.needsLLM)show({error:'Connect the LLM service in Settings before using it.'});return;}
     await Promise.allSettled(jobs);
   }
   function schedule(text){if(!settings?.autoSuggest || !settings.enabled || !allowed())return;

@@ -532,7 +532,7 @@ test('configuration download and reviewed import restore saved preferences, site
     const configured=await p.evaluate(async()=>{
       const {data}=await chrome.runtime.sendMessage({type:'state'}),s=data.settings;
       for(const config of Object.values(s.basic))config.consent=false;
-      const a={...s.llmProfiles[0],id:'default',name:'Backup <img src=x onerror=window.__badImport=1>',provider:'compatible',endpoint:'https://backup.test/v1',model:'backup-model',enabled:false,consent:false,rememberKey:false};
+      const a={...s.llmProfiles[0],id:'default',name:'Backup <img src=x onerror=window.__badImport=1>',provider:'compatible',endpoint:'https://backup.test/v1',model:'backup-model',enabled:true,consent:false,rememberKey:false};
       const b={...a,id:'backup-work',name:'Work',model:'work-model'};s.llmProfiles=[a,b];s.activeLlmId='default';const {id,name,...config}=a;s.llm=config;
       s.mode='translate';s.targetLanguage='zh';s.dailyGoal=345;s.siteOrigins=[];
       const reply=await chrome.runtime.sendMessage({type:'save-settings',settings:s,keys:{llm:'synthetic-do-not-export'}});
@@ -558,6 +558,19 @@ test('configuration download and reviewed import restore saved preferences, site
     const restored=await p.evaluate(async()=>({...(await chrome.storage.local.get(['sitePreferences','tooltipPositions','analytics','vocabulary','usage'])),state:(await chrome.runtime.sendMessage({type:'state'})).data}));
     expect(restored.sitePreferences).toEqual(backup.sitePreferences);expect(restored.tooltipPositions).toEqual(backup.tooltipPositions);expect(restored.analytics).toEqual({fixture:{typed:7}});expect(restored.vocabulary).toEqual([{word:'preserved'}]);expect(restored.usage).toEqual({requests:5});
     expect(restored.state.hasKeys.llm).toBe(true);expect(restored.state.settings.llm.consent).toBe(false);await expect(p.locator('#config-import-preview')).toBeHidden();
+    await expect(p.locator('#llm-reconnect-help')).toBeVisible();await expect(p.locator('#llm-reconnect-help')).toContainText('enabled but not connected');await expect(p.locator('#test-llm')).toBeFocused();await expect(p.locator('#save-toast')).toContainText('Click Connect and test');await p.locator('#llm').screenshot({path:'test-results/import-reconnect-needed.png'});
+  }finally{await p.evaluate(async snapshot=>{await chrome.storage.local.clear();await chrome.storage.session.clear();await chrome.storage.local.set(snapshot.local);await chrome.storage.session.set(snapshot.session);},snapshot);await p.close();}
+});
+
+test('legacy backup cannot overwrite app-owned AI metadata and new exports contain only its reference',async()=>{
+  const p=await context.newPage();await p.goto(`chrome-extension://${extensionId}/settings.html`);const snapshot=await p.evaluate(async()=>({local:await chrome.storage.local.get(null),session:await chrome.storage.session.get(null)}));
+  try{
+    const fresh=mergeSettings().llm,{consent,rememberKey,...portable}=fresh;
+    const backup=await p.evaluate(async()=>(await chrome.runtime.sendMessage({type:'export-config'})).data);backup.version=1;delete backup.builtinLlmIds;backup.uiLanguage='en';backup.settings.llmProfiles=[{...portable,id:'default',name:'Old built-in',endpoint:LEGACY_HOSTED_AI_ENDPOINT,model:'obsolete-model',enabled:false,maxTokens:100}];backup.settings.activeLlmId='default';backup.settings.siteOrigins=[];backup.sitePreferences={'example.test':{llmProfileId:'default'}};
+    await p.locator('#config-file').setInputFiles({name:'old-default.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(backup))});await expect(p.locator('#config-import-profiles')).toContainText('App default');await p.locator('#confirm-config-import').click();
+    await expect(p.locator('#llm-endpoint')).toHaveValue(HOSTED_AI_ENDPOINT);await expect(p.locator('#llm-model')).toHaveValue(fresh.model);await expect(p.locator('#llm-enabled')).toBeChecked();await expect(p.locator('#test-llm')).toBeFocused();await expect(p.locator('#llm-reconnect-help')).toBeVisible();
+    const restored=await p.evaluate(async()=>(await chrome.runtime.sendMessage({type:'state'})).data);expect(restored.settings.llm.consent).toBe(false);expect(restored.settings.llm.maxTokens).toBe(800);
+    const downloaded=p.waitForEvent('download');await p.locator('#export-config').click();const raw=await readFile(await (await downloaded).path(),'utf8'),exported=JSON.parse(raw);expect(exported.version).toBe(2);expect(exported.settings.llmProfiles).toEqual([]);expect(exported.builtinLlmIds).toEqual(['default']);expect(raw).not.toContain(HOSTED_AI_ENDPOINT);expect(raw).not.toContain(LEGACY_HOSTED_AI_ENDPOINT);expect(raw).not.toContain(fresh.model);
   }finally{await p.evaluate(async snapshot=>{await chrome.storage.local.clear();await chrome.storage.session.clear();await chrome.storage.local.set(snapshot.local);await chrome.storage.session.set(snapshot.session);},snapshot);await p.close();}
 });
 
@@ -602,7 +615,7 @@ async function providerSetupPage(profile={}){
       }
       return {ok:false,error:'Unexpected synthetic UI message.'};
     };
-  },settings);
+  },mergeSettings(settings));
   await p.goto(`chrome-extension://${extensionId}/settings.html`);await p.locator('#ui-language').selectOption('en');await expect(p.locator('#llm-profile')).toHaveValue('default');return p;
 }
 
@@ -634,6 +647,13 @@ test('invalid settings and failed autosaves retain input and last saved values; 
     expect(await p.evaluate(()=>window.__providerSettings.dailyGoal)).toBe(410);await expect(p.locator('#dailyGoal')).toHaveValue('411');
     await p.evaluate(()=>{window.__rejectSave=false;});await p.locator('#dailyGoal').fill('412');await expect.poll(()=>p.evaluate(()=>window.__providerSettings.dailyGoal)).toBe(412);
   }finally{await p.close();}
+});
+
+test('imported enabled but unconnected AI shows a recovery hint, skips its lane and resumes after explicit connection',async()=>{
+  const p=await pageWithCoach();await p.evaluate(()=>window.__coachSetSettings({uiLanguage:'zh-CN',llmEnabled:false,llmNeedsConnection:true}));const draft=p.getByRole('textbox',{name:'Draft',exact:true}),tip=p.locator('input-coach-tip');await draft.fill('导入后等待连接。');await expect(tip.locator('.suggestion')).toHaveText('Hello, world.');await expect(tip.getByRole('button',{name:'去设置连接大模型'})).toBeVisible();expect(await p.evaluate(()=>window.__coachRequests.map(request=>request.lane))).toEqual(['mt']);await expect(tip.locator('.parallel-results')).not.toContainText('Polish and Explain');
+  await p.evaluate(()=>window.__coachSetSettings({mode:'polish'}));await draft.fill('A synthetic English sentence.');await expect(tip.locator('.error')).toHaveText('请先在设置中连接大模型服务。');await expect(tip.getByRole('button',{name:'打开设置',exact:true})).toBeVisible();expect(await p.evaluate(()=>window.__coachRequests.length)).toBe(1);
+  await p.evaluate(()=>window.__coachSetSettings({mode:'auto',llmEnabled:true,llmNeedsConnection:false}));await draft.fill('连接后恢复大模型。');await expect(tip.locator('.suggestion')).toHaveText('We should streamline this process.');await expect(tip.getByRole('button',{name:'去设置连接大模型'})).toHaveCount(0);await p.close();
+  const settings=await providerSetupPage({enabled:true,consent:false,endpoint:'https://fixture.example/v1',model:'fixture'});try{await expect(settings.locator('#llm-reconnect-help')).toContainText('enabled but not connected');expect(await settings.evaluate(()=>window.__providerCalls)).toEqual([]);await settings.locator('#test-llm').click();await expect(settings.locator('#llm-reconnect-help')).toBeHidden();expect((await settings.evaluate(()=>window.__providerCalls)).map(call=>call.type)).toEqual(['permission','save','test-llm']);}finally{await settings.close();}
 });
 
 test('one connection click grants, saves, enables and tests the selected LLM without activating it; disable preserves access and keys',async()=>{
@@ -706,12 +726,12 @@ test('Saywell free AI preset fills endpoint and fixed model, needs no key and ke
   }finally{await p.locator('#ui-language').selectOption('en');await p.close();}
 });
 
-test('legacy free AI address changes only on Connect and test, renewing permission and consent for the custom domain',async()=>{
+test('legacy built-in AI follows the app domain but waits for explicit connection and permission',async()=>{
   const p=await providerSetupPage({...mergeSettings().llm,endpoint:LEGACY_HOSTED_AI_ENDPOINT,enabled:true,consent:true});try{
-    await expect(p.locator('#llm-endpoint')).toHaveValue(LEGACY_HOSTED_AI_ENDPOINT);await expect(p.locator('.endpoint-update')).toContainText(HOSTED_AI_ENDPOINT);
+    await expect(p.locator('#llm-endpoint')).toHaveValue(HOSTED_AI_ENDPOINT);await expect(p.locator('#llm-reconnect-help')).toBeVisible();
     expect((await p.evaluate(()=>window.__providerCalls)).filter(c=>c.type==='permission' || c.type==='test-llm')).toEqual([]);
     await p.evaluate(()=>{window.__providerAllow=false;});await p.locator('#test-llm').click();await expect(p.getByRole('status')).toHaveText('Endpoint permission was not granted.');
-    expect(await p.evaluate(()=>window.__providerSettings.llm.endpoint)).toBe(LEGACY_HOSTED_AI_ENDPOINT);expect((await p.evaluate(()=>window.__providerCalls)).filter(c=>c.type==='test-llm')).toEqual([]);
+    expect(await p.evaluate(()=>window.__providerSettings.llm.endpoint)).toBe(HOSTED_AI_ENDPOINT);expect(await p.evaluate(()=>window.__providerSettings.llm.consent)).toBe(false);expect((await p.evaluate(()=>window.__providerCalls)).filter(c=>c.type==='test-llm')).toEqual([]);
     await p.evaluate(()=>{window.__providerAllow=true;window.__providerCalls=[];});await p.locator('#test-llm').click();await expect(p.getByRole('status')).toContainText('Connected to Synthetic LLM');
     const calls=await p.evaluate(()=>window.__providerCalls);expect(calls.find(c=>c.type==='permission').origins).toEqual([new URL(HOSTED_AI_ENDPOINT).origin+'/*']);
     expect(await p.evaluate(()=>window.__providerSettings.llm)).toMatchObject({endpoint:HOSTED_AI_ENDPOINT,enabled:true,consent:true});

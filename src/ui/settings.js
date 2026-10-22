@@ -66,7 +66,11 @@ function renderConsent(){for(const id of [...BASIC_ORDER,'llm']){
   const cfg=id==='llm'?edited():s.basic[id];
   text('#'+id+'-state',!cfg.consent?'Service not connected':id==='llm' && !cfg.enabled?'Service paused':'Service enabled');
   $(`[data-revoke="${id}"]`).classList.toggle('hidden',!cfg.consent);
-}}
+}
+  let help=$('#llm-reconnect-help');if(!help){help=el('p',undefined,'help hidden');help.id='llm-reconnect-help';help.style.cssText='padding:10px;background:#fff3df;border-left:3px solid #bc8946;color:#785629';$('#llm-state').closest('.actions').after(help);}
+  help.textContent=t('“{name}” is enabled but not connected. Click Connect and test. Configuration backups do not include API keys or service authorization.',{name:edited()?.name==='Default configuration'?t('Default configuration'):edited()?.name});
+  help.classList.toggle('hidden',!edited()?.enabled || Boolean(edited()?.consent));
+}
 function renderOrder(){
   $('#basic-order').replaceChildren();s.basicOrder.forEach((id,index)=>{
     const row=el('li'),name=el('span',`${index+1}. ${t(providerName(id))} · ${t(s.basic[id].consent?'Service enabled':'Service not connected')}`);
@@ -217,7 +221,7 @@ function renderImportPreview(){
   $('#config-import-summary').textContent=t('{profiles} LLM configurations · {sites} website defaults · {positions} positions · {sizes} sizes',{profiles:info.profiles.length,sites:info.sites,positions:info.positions,sizes:info.sizes});
   const action=t({auto:'Auto',translate:'Translate',polish:'Polish',explain:'Explain'}[info.mode]),target=$(`#targetLanguage option[value="${info.targetLanguage}"]`)?.textContent,scope=$(`#siteMode option[value="${info.siteMode}"]`)?.textContent;
   $('#config-import-defaults').textContent=t('Default: {action} · {target} · {scope}',{action,target,scope});
-  $('#config-import-profiles').replaceChildren(...info.profiles.map(p=>el('li',`${p.name==='Default configuration'?t(p.name):p.name} · ${LLM_PROVIDERS[p.provider].name}${p.model?` / ${p.model}`:''}${p.id===info.activeLlmId?' · '+t('Active'):''}`)));
+  $('#config-import-profiles').replaceChildren(...info.profiles.map(p=>el('li',`${p.name==='Default configuration'?t(p.name):p.name} · ${LLM_PROVIDERS[p.provider].name}${p.builtin?' · '+t('App default · uses installed version'):p.model?` / ${p.model}`:''}${p.id===info.activeLlmId?' · '+t('Active'):''}`)));
   $('#config-import-origins').replaceChildren(...(info.origins.length?info.origins.map(origin=>el('li',origin)):[el('li',t('No website access requested.'))]));
   $('#config-import-access-row').classList.toggle('hidden',!info.missingOrigins.length);
   $('#config-import-permissions').textContent=info.missingOrigins.length?t('{count} website scopes need permission; unchecked scopes will be skipped.',{count:info.missingOrigins.length}):t('Only existing website permissions will be used.');
@@ -243,10 +247,12 @@ $('#confirm-config-import').addEventListener('click',task(async()=>{
   pendingProfileKeys={};for(const id of KEY_IDS)putValue(id+'-key','');
   state=await send('state');s=state.settings;editingId=s.activeLlmId;render();
   status(result.skippedOrigins?'Configuration imported; {count} website scopes were skipped. Reauthorize providers and refresh website tabs.':'Configuration imported. Reauthorize providers and refresh website tabs.',false,{count:result.skippedOrigins});
+  if(edited()?.enabled && !edited().consent){$('#test-llm').scrollIntoView({block:'center'});$('#test-llm').focus({preventScroll:true});toast('Configuration imported. Click Connect and test to restore the selected LLM.');}
 }));
 $('#export').addEventListener('click',task(async()=>{const data=await send('state');download('saywell-practice.json',{schemaVersion:1,exportedAt:new Date().toISOString(),analytics:data.analytics || {},vocabulary:(data.vocabulary || []).map(({context,...word})=>word)});status('Exported activity and vocabulary without credentials or contexts.');}));
 $('#reset').addEventListener('click',()=>{$('#confirm-reset').classList.remove('hidden');status('Reset deletes all local activity and vocabulary. Click Confirm reset to continue.');});
 $('#confirm-reset').addEventListener('click',task(async()=>{await send('reset-data');$('#confirm-reset').classList.add('hidden');status('Practice data reset.');}));
 const setupHolder=el('div');$('.page-heading').after(setupHolder);
+const builtinBackupNote=el('p',t('Built-in Saywell Free AI follows this app version and is not restored from backup data. Custom LLM configurations are portable.'),'help');builtinBackupNote.dataset.i18n='Built-in Saywell Free AI follows this app version and is not restored from backup data. Custom LLM configurations are portable.';$('.config-transfer .help').after(builtinBackupNote);
 mountSetup(setupHolder,{beforeComplete:async()=>{clearTimeout(saveTimer);editRevision++;await saveQueue.catch(()=>{});},onComplete:async()=>{state=await send('state');s=state.settings;editingId=s.activeLlmId;render();}});
 if(!previewNotice())send('state').then(data=>{state=data;s=data.settings;editingId=s.activeLlmId;render();loaded=true;}).catch(e=>status(e.message,true));render();

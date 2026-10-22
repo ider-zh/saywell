@@ -54,7 +54,7 @@ Default API base: `https://saywell.9992099.xyz/v1`. The sponsored Cloudflare ser
 
 This prerelease service has a shared daily free allocation, resetting at **08:00 Asia/Shanghai**. When exhausted, Saywell shows a notice and pauses repeated AI requests while retaining MT. The service may change or end around release. See [Cloudflare deployment](docs/cloudflare-deployment.md) for operating details.
 
-**Legacy address migration:** Reload the extension, select the Saywell profile using the old workers.dev address, and click **Connect and test** once. It switches to the custom hostname and renews authorization. Other providers and custom addresses are preserved.
+**Legacy address migration:** Reload the extension: known built-in Saywell profiles follow the current `saywell.9992099.xyz` endpoint, and old backups cannot restore obsolete service metadata. A hostname change clears consent; click **Connect and test** to restore access. Other providers and custom addresses are preserved.
 
 ### Machine translation
 
@@ -84,6 +84,8 @@ Choose a rolling limit of **50, 100, 200, 500 or 1,000**, or turn recording off.
 ### Configuration backup
 
 Settings → Local data & privacy → **Configuration backup** exports and imports JSON. Export first saves valid pending edits. Backups include global preferences, LLM profiles, website defaults, card positions/sizes and UI language, but **exclude API keys, provider text consent and practice data**.
+
+Built-in Saywell defaults follow the app version. Only their reference IDs are backed up to retain active/site selections; URLs, models and other built-in values are omitted. Old backups also use current app defaults. Custom profiles remain portable. After import, use **Connect and test** when prompted; Saywell Free AI needs no key, while custom services may need their key re-entered. New exports use v2; v1/v2 imports are supported.
 
 Import has a review step and replaces configuration after confirmation, retaining activity and vocabulary. Provider consent must be renewed; missing website permissions require an explicit request. Matching local profile identities/endpoints can retain their keys; replaced identities lose theirs.
 

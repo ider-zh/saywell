@@ -148,6 +148,7 @@ test('configuration import replaces preferences, preserves exact-identity keys a
   assert.deepEqual(stores.local.settings.siteOrigins,['https://chatgpt.com/*']);assert.deepEqual(stores.local.keys,{llm:'keep-local',azure:'keep-azure'});assert.deepEqual(stores.session.keys,{});
   assert.equal(stores.local.settings.llmProfiles[0].rememberKey,true);assert.equal(stores.local.settings.llmProfiles[1].rememberKey,false);
   for(const config of [...stores.local.settings.llmProfiles,...Object.values(stores.local.settings.basic)])assert.equal(config.consent,false);
+  const publicAfterImport=(await message({type:'public-settings'},site)).data;assert.equal(publicAfterImport.llmEnabled,false);assert.equal(publicAfterImport.llmNeedsConnection,true);assert.ok(!JSON.stringify(publicAfterImport).includes('keep-local'));
   assert.deepEqual(stores.local.sitePreferences,backup.sitePreferences);assert.deepEqual(stores.local.tooltipPositions,backup.tooltipPositions);
   assert.deepEqual(stores.local.analytics,{day:{typed:10}});assert.deepEqual(stores.local.vocabulary,[{word:'keep'}]);assert.deepEqual(stores.local.usage,{requests:7});assert.equal(network.length,0);
 });

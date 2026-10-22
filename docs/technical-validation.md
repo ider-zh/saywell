@@ -1,5 +1,13 @@
 # Phase 0 — technical validation
 
+## Import recovery and app-owned defaults — 2026-10-22
+
+The reported import failure had two causes: the content projection treated enabled-but-unconsented LLMs as usable, and the tooltip omitted the Chinese connection-error string. The projection now exposes readiness plus a redacted reconnect flag; MT can continue with a clear recovery entry and explicit Polish/Explain gives a local instruction without a failed remote attempt. Settings retains a named reconnect notice and focuses Connect and test after import. Existing consent, grant, exact-key-identity and no-automatic-activation boundaries remain enforced.
+
+Configuration export now uses version 2, omitting built-in service data while keeping bounded ID references. Version-1 files remain accepted; their known built-in profiles are rebuilt with current application defaults. Unit cases verify empty custom-profile exports, omitted URL/model data, stable global/site references, custom endpoint preservation, old metadata replacement and malformed/duplicate/capacity rejection. Browser fixtures import a real old backup, verify the current endpoint/model and revoked consent, then download a v2 backup containing references only. Additional fixtures cover named connection recovery, no unconnected LLM lane, localized explicit-mode instructions and resumption after an explicit connection. All requests use synthetic/mocked services; no user file or live key is read.
+
+Validation passed 101 functional Node tests, 1 isolated performance test and 58 Chromium scenarios through `npm run check`. Final ID-validation and Chinese recovery-label refinements passed 38 targeted Node tests and 4 rebuilt-browser scenarios. Active automatic-suggestion input medians under 4x CPU slowdown were 2.1/2.0 ms (native/rich), with zero synchronous rectangle reads; all performance budgets passed.
+
 ## Brand, hover help and continuous processing feedback — 2026-10-22
 
 The non-letter mark uses shared filled speech shapes in cream/orange on green. The build rasterizer consumes the same shapes as SVG/DOM and exports PNG sizes plus a multi-image ICO; Chromium visual fixtures decode each format and capture native-size icons on light/dark backgrounds. Console brand/settings titles switch with UI language, toolbar help preserves the higher-priority permission notice, and tooltip close/practice controls now expose their localized purpose.

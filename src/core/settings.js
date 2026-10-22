@@ -1,5 +1,5 @@
 import {LLM_PROVIDERS} from './llm-providers.js';
-import {HOSTED_AI_ENDPOINT,LEGACY_HOSTED_AI_ENDPOINT,HOSTED_AI_MODEL} from './hosted-ai.js';
+import {HOSTED_AI_ENDPOINT,HOSTED_AI_MODEL,isBuiltinHostedEndpoint} from './hosted-ai.js';
 export const BASIC_ORDER = ['googleweb','bing','microsoft','mymemory','libre','azure','google'];
 const LEGACY_BASIC_ORDER=['microsoft','mymemory','libre','azure','google'];
 export const BASIC_KEY_IDS = ['libre','azure','google'];
@@ -23,6 +23,9 @@ export const DEFAULTS = Object.freeze({
     thinking:false,thinkingProtocol:'auto',temperature: null, maxTokens: 800, timeout: 20000, dailyRequests: 0, rememberKey: false }
 });
 
+export const isBuiltinLlmProfile=profile=>profile?.provider==='saywell' && isBuiltinHostedEndpoint(profile.endpoint);
+export const builtinLlmProfile=(id='default')=>({...DEFAULTS.llm,enabled:true,provider:'saywell',endpoint:HOSTED_AI_ENDPOINT,model:HOSTED_AI_MODEL,id,name:'Default configuration'});
+
 export function mergeSettings(raw = {}) {
   const llm={...DEFAULTS.llm,...(!raw.llm && !raw.llmProfiles?{enabled:true,provider:'saywell',endpoint:LLM_PROVIDERS.saywell.endpoint,model:LLM_PROVIDERS.saywell.model}:{}),...raw.llm};
   const profiles=Array.isArray(raw.llmProfiles) && raw.llmProfiles.length
@@ -32,7 +35,12 @@ export function mergeSettings(raw = {}) {
   const active=profiles.find(p=>p.id===activeLlmId);
   // Keep the active projection compatible with previous installations and saved-settings clients.
   if(active && raw.llm)Object.assign(active,llm);
-  for(const p of profiles)if(p.provider==='saywell' && [HOSTED_AI_ENDPOINT,LEGACY_HOSTED_AI_ENDPOINT].includes(p.endpoint) && p.model==='@cf/qwen/qwen3.8-27b')p.model=HOSTED_AI_MODEL;
+  for(const p of profiles)if(isBuiltinLlmProfile(p)){
+    // The built-in service follows app metadata. A changed host needs renewed
+    // consent and its own browser grant before any input can leave the browser.
+    if(p.endpoint.replace(/\/+$/,'')!==HOSTED_AI_ENDPOINT)p.consent=false;
+    p.endpoint=HOSTED_AI_ENDPOINT;p.model=HOSTED_AI_MODEL;
+  }
   return { ...DEFAULTS, ...raw,
     // Append new engines to an existing complete order, without changing old priorities or consent.
     basicOrder:Array.isArray(raw.basicOrder) && raw.basicOrder.length===LEGACY_BASIC_ORDER.length && new Set(raw.basicOrder).size===LEGACY_BASIC_ORDER.length && raw.basicOrder.every(id=>LEGACY_BASIC_ORDER.includes(id))?[...raw.basicOrder,'googleweb','bing']:raw.basicOrder ?? [...BASIC_ORDER],
@@ -48,7 +56,8 @@ export function publicSettings(raw) {
   return { enabled: s.enabled, autoSuggest: s.autoSuggest, analytics: s.analytics, basicEngine: s.basicEngine,
     basicFallback:s.basicFallback,
     mode: s.mode,targetLanguage:s.targetLanguage, style: s.style, debounce: s.debounce, difficulty: s.difficulty, maxWords: s.maxWords,
-    siteMode:s.siteMode,siteOrigins:s.siteOrigins, allowlist: s.allowlist, blocklist: s.blocklist, llmEnabled: s.llm.enabled };
+    siteMode:s.siteMode,siteOrigins:s.siteOrigins, allowlist: s.allowlist, blocklist: s.blocklist,
+    llmEnabled: s.llm.enabled && s.llm.consent,llmNeedsConnection:s.llm.enabled && !s.llm.consent };
 }
 
 const enums = { targetLanguage:['en','zh'],siteMode:['blacklist','whitelist'],basicEngine: ['auto','builtin',...BASIC_ORDER], mode: ['auto','translate','polish','explain'],

@@ -1,7 +1,20 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {mergeSettings} from '../src/core/settings.js';
+import {mergeSettings,builtinLlmProfile} from '../src/core/settings.js';
+import {HOSTED_AI_ENDPOINT,LEGACY_HOSTED_AI_ENDPOINT,HOSTED_AI_MODEL} from '../src/core/hosted-ai.js';
 import {CONFIG_FILE_LIMIT,exportConfigBackup,parseConfigBackup,configSummary} from '../src/core/config-backup.js';
-const file=()=>exportConfigBackup(mergeSettings());
+const file=()=>exportConfigBackup(mergeSettings({llm:{provider:'compatible',endpoint:'https://custom.test/v1',model:'custom'}}));
+
+test('backups omit built-in service data and restore app-owned defaults while preserving profile references',()=>{
+  const builtin=builtinLlmProfile(),custom={...builtin,id:'work',name:'Work',provider:'compatible',endpoint:'https://custom.test/v1',model:'custom'};
+  const backup=exportConfigBackup(mergeSettings({llmProfiles:[builtin,custom]}),{sitePreferences:{'x.com':{llmProfileId:'default'}}});
+  assert.equal(backup.version,2);assert.deepEqual(backup.builtinLlmIds,['default']);assert.equal(backup.settings.llmProfiles.length,1);assert.ok(!JSON.stringify(backup).includes(HOSTED_AI_ENDPOINT));assert.ok(!JSON.stringify(backup).includes(HOSTED_AI_MODEL));
+  const restored=parseConfigBackup(JSON.stringify(backup));assert.equal(restored.settings.llm.endpoint,HOSTED_AI_ENDPOINT);assert.equal(restored.settings.llm.model,HOSTED_AI_MODEL);assert.equal(restored.settings.llm.consent,false);assert.equal(restored.settings.llmProfiles[1].endpoint,'https://custom.test/v1');assert.equal(restored.sitePreferences['x.com'].llmProfileId,'default');
+  const only=exportConfigBackup(mergeSettings());assert.deepEqual(only.settings.llmProfiles,[]);assert.equal(parseConfigBackup(JSON.stringify(only)).settings.llm.provider,'saywell');
+  const legacy={...only,version:1,settings:{...only.settings,llmProfiles:[{...builtin,endpoint:LEGACY_HOSTED_AI_ENDPOINT,model:'old-model',maxTokens:100}]}};delete legacy.builtinLlmIds;delete legacy.settings.llmProfiles[0].consent;delete legacy.settings.llmProfiles[0].rememberKey;
+  const current=parseConfigBackup(JSON.stringify(legacy)).settings.llm;assert.equal(current.endpoint,HOSTED_AI_ENDPOINT);assert.equal(current.model,HOSTED_AI_MODEL);assert.equal(current.maxTokens,800);
+  delete legacy.settings.llmProfiles[0].id;assert.throws(()=>parseConfigBackup(JSON.stringify(legacy)),/Invalid LLM configurations/);
+  for(const refs of [['default','default'],['bad/id'],Array.from({length:21},(_,i)=>'p'+i)])assert.throws(()=>parseConfigBackup(JSON.stringify({...only,builtinLlmIds:refs})));
+});
 
 test('configuration backups preserve bounded website sizes and restore old files with default sizing',()=>{
   const backup=exportConfigBackup(mergeSettings(),{tooltipSizes:{'ChatGPT.com':'large','x.com':'small'}});assert.deepEqual(backup.tooltipSizes,{'chatgpt.com':'large','x.com':'small'});assert.deepEqual(parseConfigBackup(JSON.stringify(backup)).tooltipSizes,backup.tooltipSizes);
