@@ -16,7 +16,8 @@ const dragCSS='.drag-handle{display:flex;align-items:center;gap:5px;flex:1;min-w
 const sizeCSS=`:host{--pad:10px;--text:16px;--body:130px;--space:7px;font-size:12px}:host([data-size=medium]){--pad:13px;--text:18px;--body:190px;--space:10px;font-size:13px}:host([data-size=large]){--pad:16px;--text:20px;--body:260px;--space:12px;font-size:14px}.card{padding:var(--pad)}header{margin-bottom:var(--space);gap:5px}.suggestion{font-size:var(--text);max-height:var(--body);margin:6px 0 var(--space)}.toolbar{margin-bottom:var(--space);flex-wrap:wrap;gap:5px}.engine{letter-spacing:0;overflow-wrap:anywhere}footer{padding-top:var(--space);gap:5px}footer button{padding:4px 8px}.tooltip-size{width:74px;min-width:0;font-size:10px;padding:3px;flex:none}.saywell-mark{width:19px;height:19px}.grip{margin-right:3px}.note:empty{display:none}`;
 const practiceCSS=`.mini-entry{border:0;padding:2px 0;color:#71806c;font-size:10px}.snooze-entry{display:grid;place-items:center;flex:none;width:20px;height:22px;border:0;padding:0;font-size:17px;color:#71806c}.mini-menu{background:#f2f5ec;border-radius:8px;padding:9px;margin-bottom:9px;display:flex;flex-wrap:wrap;gap:7px;align-items:end}.mini-menu[hidden]{display:none}.mini-menu label{display:grid;gap:3px;font-size:10px;flex:1;min-width:80px}.mini-menu select{width:100%;min-width:0;font-size:11px}.mini-menu button{font-size:10px;padding:4px 7px}.practice-panel{margin:8px 0 12px;padding:10px;background:#f4f6ee;border:1px solid #e0e6d6;border-radius:10px}.practice-heading{display:flex;align-items:center;justify-content:space-between;font-size:11px;font-weight:600}.practice-heading button{padding:0 4px;border:0;font-size:16px}.practice-target{font:15px/1.5 Georgia,serif;white-space:pre-wrap;overflow-wrap:anywhere;max-height:85px;overflow:auto;margin:7px 0 9px}.practice-editor{position:relative}.practice-editor textarea,.practice-mirror{font:14px/1.6 'Segoe UI',sans-serif;letter-spacing:normal;white-space:pre-wrap;overflow-wrap:anywhere;tab-size:4;padding:9px;margin:0;box-sizing:border-box}.practice-editor textarea{display:block;position:relative;z-index:1;background:transparent;color:#203d36;caret-color:#234f40;width:100%;height:88px;min-height:65px;max-height:150px;resize:vertical;border:1px solid #c7d2bd;border-radius:7px}.practice-editor textarea:focus{outline:2px solid #718e65;outline-offset:1px}.practice-mirror{position:absolute;top:1px;left:1px;pointer-events:none;overflow:hidden;color:transparent;background:#fffef9;border-radius:6px}.practice-mirror mark{color:transparent}.practice-major{background:#f6d8cf;border-radius:2px;text-decoration:underline;text-decoration-color:#b85d42}.practice-minor{background:#ece9d6;border-radius:2px;text-decoration:underline dotted #aa9d6b}.practice-pending{color:#94a08d;background:transparent}.practice-summary{display:flex;align-items:start;justify-content:space-between;gap:8px;margin-top:7px;font-size:10px;color:#71806c}.practice-summary p{margin:0}.practice-summary button{border:0;padding:0;white-space:nowrap;font-size:10px}.practice-help{margin:5px 0 0;font-size:10px;color:#7b8874}:host([data-practicing]) .suggestion,:host([data-practicing]) .practice-entry{display:none}`;
 const node=(tag,text,attrs={})=>{const e=document.createElement(tag); if(text!==undefined)e.textContent=text;for(const[k,v]of Object.entries(attrs))e.setAttribute(k,v);return e;};
-const progressCSS=`:host{all:initial;position:fixed;display:block;width:24px;height:24px;z-index:2147483647;pointer-events:none;contain:strict;color:#315f48}svg{display:block;width:24px;height:24px;background:#fffef9;border-radius:50%;box-shadow:0 1px 4px #163b3426}circle{fill:none;stroke-width:2}.track{stroke:#dde5d7}.progress{stroke:currentColor;stroke-linecap:round;stroke-dasharray:100;stroke-dashoffset:100;transform:rotate(-90deg);transform-origin:center}:host([data-phase=waiting]) svg{animation:waiting 1s linear infinite}:host([data-phase=waiting]) .progress{stroke-dashoffset:72}@keyframes waiting{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){:host([data-phase=waiting]) svg{animation:none}}`;
+const progressCSS=`:host{all:initial;position:fixed;display:block;width:24px;height:24px;z-index:2147483647;color:#315f48}svg{display:block;width:24px;height:24px;background:#fffef9;border-radius:50%;box-shadow:0 1px 4px #163b3426}circle{fill:none;stroke-width:2}.track{stroke:#dde5d7}.progress{stroke:currentColor;stroke-linecap:round;stroke-dasharray:24 76;transform-origin:center;animation:orbit 1.2s linear infinite,breathe 1.8s ease-in-out infinite}:host([data-paused]) .progress{animation-play-state:paused}@keyframes orbit{from{transform:rotate(-90deg)}to{transform:rotate(270deg)}}@keyframes breathe{0%,100%{stroke-dasharray:24 76}50%{stroke-dasharray:64 36}}@media(prefers-reduced-motion:reduce){.progress{animation:none;transform:rotate(-90deg)}}`;
+const progressHelpCSS=`:host{pointer-events:auto;contain:size style}.progress-help{position:fixed;margin:0;padding:9px 11px;background:#214d3f;color:#fff3d6;border-radius:8px;box-shadow:0 4px 16px #163b3426;font:12px/1.5 'Segoe UI',sans-serif;overflow:hidden;overflow-wrap:anywhere;box-sizing:border-box;pointer-events:none}.progress-help[hidden]{display:none}svg{pointer-events:none}`;
 // Animate decoration, not button geometry: pointer-down/click must keep the same target.
 const revealCSS='.card.from-progress{position:relative;animation:reveal .18s ease-out}.card.from-progress::before{content:"";position:absolute;inset:0;background:#dfead6;pointer-events:none;transform-origin:inherit;animation:unfold .18s ease-out forwards}@keyframes reveal{from{opacity:0}to{opacity:1}}@keyframes unfold{from{opacity:.55;transform:scale(.08)}to{opacity:0;transform:scale(1)}}@media(prefers-reduced-motion:reduce){.card.from-progress{animation:none}.card.from-progress::before{display:none}}';
 export class Tooltip {
@@ -32,35 +33,54 @@ export class Tooltip {
     this.observer.observe(this.host);
   }
   discardQueued(){this.queuedView=null;}
-  queueProgress(editor,{duration=0,action='translate',site,waiting=false}={}){
-    this.progressState={editor,duration,action,site,waiting,started:performance.now()};
-    // Defer DOM insertion and all geometry out of the editor's input handler.
-    if(!this.progressFrame)this.progressFrame=requestAnimationFrame(()=>{this.progressFrame=0;this.renderProgress();});
+  queueProgress(editor,{action,site,waiting=false}={}){
+    const previous=this.progressState;this.progressState={editor,action:action || (waiting && previous?.editor===editor?previous.action:'translate'),site,waiting};
+    clearTimeout(this.progressTimer);
+    const queue=()=>{this.progressTimer=0;if(!this.progressFrame)this.progressFrame=requestAnimationFrame(()=>{this.progressFrame=0;this.renderProgress();});};
+    // A short quiet period avoids flashing on every key. One CSS animation then
+    // spans the remaining input delay AND provider wait without being restarted.
+    if(waiting || this.progressHost?.isConnected)queue();else this.progressTimer=setTimeout(queue,180);
   }
   hideProgress(){
-    cancelAnimationFrame(this.progressFrame);this.progressFrame=0;this.progressState=null;
-    this.progressAnimation?.cancel();this.progressAnimation=null;if(this.progressHost?.isConnected)this.progressHost.remove();
+    clearTimeout(this.progressTimer);this.progressTimer=0;cancelAnimationFrame(this.progressFrame);this.progressFrame=0;this.progressState=null;
+    if(this.progressHelp)this.progressHelp.hidden=true;if(this.progressHost?.isConnected)this.progressHost.remove();
   }
   pauseProgress(){
     const state=this.progressState;if(!state || state.paused)return;
-    state.paused=true;state.pausedAt=performance.now();this.progressAnimation?.pause();
-    if(this.progressHost){this.progressHost.setAttribute('data-paused','');const text=siteText(state.site || {},'Input method composing · paused');this.progressHost.setAttribute('aria-label',text);this.progressHost.title=text;this.progressGlyph.textContent='Ⅱ';}
+    state.paused=true;clearTimeout(this.progressTimer);this.progressTimer=0;cancelAnimationFrame(this.progressFrame);this.progressFrame=0;
+    if(this.progressHost){this.progressHost.setAttribute('data-paused','');const text=siteText(state.site || {},'Input method composing · paused');this.progressHost.setAttribute('aria-label',text);this.progressGlyph.textContent='Ⅱ';this.updateProgressHelp();}
+  }
+  updateProgressHelp(){
+    const state=this.progressState;if(!state || !this.progressHelp)return;
+    const message=state.paused?'Input method is composing. Progress restarts after you confirm the text.':state.waiting?'MT / LLM is running. The first available result will open here.':`${state.action==='polish'?'Polishing':state.action==='explain'?'Explanation':'Translation'} is queued. This ring covers the typing delay and processing wait.`;
+    this.progressHelp.textContent=siteText(state.site || {},message);this.progressHost.setAttribute('aria-description',this.progressHelp.textContent);
+  }
+  positionProgressHelp(viewport=this.viewport(),rect=this.progressState?.editor.getBoundingClientRect()){
+    if(!rect || !this.progressHelp || this.progressHelp.hidden)return;
+    const dock=safeTooltipDock(viewport,rect,{width:240,height:80});if(!dock){this.progressHelp.hidden=true;return;}
+    const ringLeft=parseFloat(this.progressHost.style.left),ringTop=parseFloat(this.progressHost.style.top);
+    const beside={left:ringLeft+32,top:ringTop};
+    if(beside.left+dock.width<=viewport.left+viewport.width-12 && beside.top+dock.height<=viewport.top+viewport.height-12 && (beside.left>=rect.right+8 || beside.left+dock.width<=rect.left-8 || beside.top>=rect.bottom+8 || beside.top+dock.height<=rect.top-8))Object.assign(dock,beside);
+    Object.assign(this.progressHelp.style,{left:dock.left+'px',top:dock.top+'px',width:dock.width+'px',maxHeight:dock.height+'px'});
   }
   renderProgress(){
     const state=this.progressState;if(!state || !state.editor?.isConnected)return this.hideProgress();
+    if(state.paused && !this.progressHost?.isConnected)return;
     if(!this.progressHost){
       this.progressHost=node('saywell-progress',undefined,{'data-input-coach-ignore':'',role:'status'});
       const shadow=this.progressHost.attachShadow({mode:'open'}),svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('aria-hidden','true');
-      for(const name of ['track','progress']){const circle=document.createElementNS(svg.namespaceURI,'circle');for(const[key,value]of Object.entries({cx:12,cy:12,r:8,pathLength:100,class:name}))circle.setAttribute(key,value);svg.append(circle);if(name==='progress')this.progressCircle=circle;}
+      for(const name of ['track','progress']){const circle=document.createElementNS(svg.namespaceURI,'circle');for(const[key,value]of Object.entries({cx:12,cy:12,r:8,pathLength:100,class:name}))circle.setAttribute(key,value);svg.append(circle);}
       const glyph=document.createElementNS(svg.namespaceURI,'text');for(const[key,value]of Object.entries({x:12,y:14.5,'text-anchor':'middle',fill:'currentColor','font-size':7,'font-family':'system-ui,sans-serif'}))glyph.setAttribute(key,value);svg.append(glyph);this.progressGlyph=glyph;
-      shadow.append(node('style',progressCSS+':host([data-paused]) svg{animation-play-state:paused}'),svg);
+      this.progressHelp=node('span',undefined,{class:'progress-help',role:'tooltip',hidden:''});
+      shadow.append(node('style',progressCSS+progressHelpCSS),svg,this.progressHelp);
+      this.progressHost.addEventListener('pointerenter',event=>{if(event.pointerType!=='mouse')return;this.progressHelp.hidden=false;this.positionProgressHelp();});
+      this.progressHost.addEventListener('pointerleave',()=>{this.progressHelp.hidden=true;});
+      this.progressHost.addEventListener('pointerdown',event=>event.preventDefault());
     }
     const label=state.paused?'Input method composing · paused':state.waiting?'Waiting for MT / LLM…':`Next: ${state.action}`,text=siteText(state.site || {},label);
-    this.progressHost.setAttribute('aria-label',text);this.progressHost.title=text;this.progressHost.dataset.phase=state.waiting?'waiting':'countdown';
+    this.progressHost.setAttribute('aria-label',text);this.progressHost.dataset.phase=state.waiting?'waiting':'countdown';this.updateProgressHelp();
     this.progressHost.toggleAttribute('data-paused',Boolean(state.paused));
-    this.progressGlyph.textContent=state.paused?'Ⅱ':state.waiting?'·':state.action==='translate'?(state.site?.language==='zh-CN'?'译':'T'):state.action==='polish'?(state.site?.language==='zh-CN'?'润':'P'):'?';
-    this.progressAnimation?.cancel();this.progressAnimation=null;
-    if(!state.waiting && !matchMedia('(prefers-reduced-motion: reduce)').matches){this.progressAnimation=this.progressCircle.animate([{strokeDashoffset:100},{strokeDashoffset:0}],{duration:state.duration,delay:-((state.pausedAt ?? performance.now())-state.started),fill:'forwards'});if(state.paused)this.progressAnimation.pause();}
+    this.progressGlyph.textContent=state.paused?'Ⅱ':state.action==='translate'?(state.site?.language==='zh-CN'?'译':'T'):state.action==='polish'?(state.site?.language==='zh-CN'?'润':'P'):'?';
     if(!this.progressHost.isConnected)document.documentElement.append(this.progressHost);
     this.positionProgress();
   }
@@ -70,9 +90,9 @@ export class Tooltip {
     const viewport=this.viewport(),rect=state.editor.getBoundingClientRect();
     const dock=safeTooltipDock(viewport,rect,{width:TOOLTIP_SIZES[this.size],height:210});
     let point=dock;
-    if(this.placement){const saved=placedTooltip(this.placement,tooltipBounds(viewport,{width:TOOLTIP_SIZES[this.size],height:210}));if(saved.left+24<=rect.left-8 || saved.left>=rect.right+8 || saved.top+24<=rect.top-8 || saved.top>=rect.bottom+8)point=saved;}
+    if(this.placement && dock){const saved=placedTooltip(this.placement,tooltipBounds(viewport,{width:TOOLTIP_SIZES[this.size],height:210}));if(saved.left+24<=rect.left-8 || saved.left>=rect.right+8 || saved.top+24<=rect.top-8 || saved.top>=rect.bottom+8)point=saved;}
     this.progressHost.style.display=point?'block':'none';
-    if(point){this.progressHost.style.left=point.left+'px';this.progressHost.style.top=point.top+'px';}
+    if(point){this.progressHost.style.left=point.left+'px';this.progressHost.style.top=point.top+'px';this.positionProgressHelp(viewport,rect);}
   }
   editingSite(){return this.shadow.activeElement?.matches('[data-site-field],.tooltip-size');}
   setSize(size){this.size=validTooltipSize(size)?size:'small';this.host.dataset.size=this.size;if(this.sizeControl)this.sizeControl.value=this.size;this.position(this.editor);}
@@ -101,7 +121,7 @@ export class Tooltip {
   makeHandle(header,site){
     const label=text=>siteText(site || {},text);
     const handle=this.button('',()=>{});handle.className='drag-handle brand';
-    handle.setAttribute('aria-label',label('Move tooltip'));handle.title=label('Drag to move; arrow keys move, Shift moves faster.');
+    handle.setAttribute('aria-label',label('Move tooltip'));handle.title=label('Saywell · Translate, polish and practise your writing')+'\n'+label('Drag to move; arrow keys move, Shift moves faster.');
     handle.append(node('span','⠿',{class:'grip','aria-hidden':'true'}),createMark(document),node('span','Saywell'));
     handle.addEventListener('pointerdown',event=>{
       if(event.button!==0 || !event.isPrimary)return;
@@ -160,7 +180,7 @@ export class Tooltip {
   startPractice(result){
     if(this.practice)return;const practice=this.practice={target:result.text},compare=createPracticeComparer(result.text);this.host.setAttribute('data-practicing','');
     const label=message=>siteText(this.site || {},message),panel=node('section',undefined,{class:'practice-panel','data-input-coach-ignore':'','aria-label':label('Sentence practice')}),heading=node('div',undefined,{class:'practice-heading'});
-    const close=this.button('×',()=>this.closePractice());close.setAttribute('aria-label',label('Close practice'));heading.append(node('span',label('Try it yourself')),close);
+    const close=this.button('×',()=>this.closePractice());close.setAttribute('aria-label',label('Close practice'));close.title=label('Close practice');heading.append(node('span',label('Try it yourself')),close);
     const target=node('div',undefined,{class:'practice-target'}),editor=node('div',undefined,{class:'practice-editor'}),mirror=node('div',undefined,{class:'practice-mirror','aria-hidden':'true'}),input=node('textarea',undefined,{'aria-label':label('Retype the suggested sentence'),maxlength:String(Math.max(6000,Math.min(22000,result.text.length+2000))),spellcheck:'false',autocomplete:'off',autocapitalize:'off','data-input-coach-ignore':'',placeholder:label('Retype the sentence here…')});
     const summary=node('div',undefined,{class:'practice-summary'}),feedback=node('p',undefined,{role:'status','aria-live':'polite'}),reset=this.button(label('Start again'),()=>{input.value='';update();input.focus({preventScroll:true});});summary.append(feedback,reset);
     const render=(container,parts)=>{let cursor=container.firstChild;for(const part of parts){const tag=part.kind==='match'?'SPAN':'MARK';let current=cursor;if(!current || current.nodeName!==tag){current=node(tag.toLowerCase());if(cursor)container.replaceChild(current,cursor);else container.append(current);}if(current.className!=='practice-'+part.kind)current.className='practice-'+part.kind;if(current.textContent!==part.text)current.textContent=part.text;cursor=current.nextSibling;}while(cursor){const next=cursor.nextSibling;cursor.remove();cursor=next;}};
@@ -248,7 +268,7 @@ export class Tooltip {
     this.isSitePanel=Boolean(site && !result && !busy && !error);
     this.shadow.replaceChildren(); const style=node('style',css+siteCSS+compactCSS+dragCSS+sizeCSS+practiceCSS);const card=node('section',undefined,{class:'card','aria-label':'Saywell suggestion'});
     const header=node('header');this.makeHandle(header,site);
-    const close=this.button('×',this.handlers.onDismiss);close.className='close';close.setAttribute('aria-label','Dismiss suggestion');header.append(close);card.append(header,this.makeSnooze());
+    const close=this.button('×',this.handlers.onDismiss);close.className='close';close.setAttribute('aria-label',siteText(site || {},'Dismiss suggestion'));close.title=siteText(site || {},'Dismiss suggestion');header.append(close);card.append(header,this.makeSnooze());
     const toolbar=node('div',undefined,{class:'row toolbar'});const select=node('select',undefined,{'aria-label':'Suggestion action'});
     for(const value of ['auto','translate','polish','explain']){const option=node('option',value[0].toUpperCase()+value.slice(1),{value});select.append(option);}select.value=mode;
     select.addEventListener('change',()=>this.handlers.onMode(select.value));toolbar.append(select);

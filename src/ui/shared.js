@@ -1,6 +1,8 @@
 import {t,locale,translateError} from './i18n.js';
 import {createMark} from '../brand/mark.js';
-for(const holder of document.querySelectorAll('.brand-mark'))holder.replaceChildren(createMark(document));
+for(const holder of document.querySelectorAll('.brand-mark')){holder.replaceChildren(createMark(document));const target=holder.closest('.brand') || holder;target.dataset.i18nTitle='Saywell · Translate, polish and practise your writing';}
+// Existing localized accessible names also provide native hover help for small controls.
+for(const control of document.querySelectorAll('.icon-button[data-i18n-aria-label]'))control.dataset.i18nTitle=control.dataset.i18nAriaLabel;
 export {t,locale,initLocale} from './i18n.js';
 export async function send(type,extra={}) {
   if(!globalThis.chrome?.runtime?.id)throw new Error('Load the unpacked extension to use this feature.');

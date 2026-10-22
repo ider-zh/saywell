@@ -5,6 +5,13 @@ export function siteInfo(host,settings,browserLanguage='en'){
   return {host,mode:settings.siteMode || 'blacklist',blocked:Boolean(rule),rule,canRemove:rule?.toLowerCase()===host.toLowerCase(),language:resolveLanguage(settings.uiLanguage,browserLanguage),preferences:settings.sitePreferences || {},defaults:settings.globalDefaults || {},profiles:settings.llmChoices || []};
 }
 const chinese={
+  'Saywell · Translate, polish and practise your writing':'Saywell · 随写随译、润色表达、练习写作',
+  'Translation is queued. This ring covers the typing delay and processing wait.':'翻译已排队，圆环会持续覆盖输入延迟和接口处理等待。',
+  'Polishing is queued. This ring covers the typing delay and processing wait.':'润色已排队，圆环会持续覆盖输入延迟和接口处理等待。',
+  'Explanation is queued. This ring covers the typing delay and processing wait.':'解释已排队，圆环会持续覆盖输入延迟和接口处理等待。',
+  'MT / LLM is running. The first available result will open here.':'机器翻译 / 大模型正在处理，首个可用结果返回后在此展开。',
+  'Input method is composing. Progress restarts after you confirm the text.':'输入法正在选词；确认文字上屏后重新开始。',
+  'Dismiss suggestion':'关闭建议',
   'Next: translate':'接下来：翻译','Next: polish':'接下来：润色','Next: explain':'接下来：解释','Waiting for MT / LLM…':'正在等待机器翻译 / 大模型结果…',
   'Input method composing · paused':'输入法选词中 · 已暂停',
   'Pause temporarily':'临时暂停','Pause for':'暂停时长','Pause on':'暂停范围','1 hour':'1 小时','4 hours':'4 小时','Until tomorrow':'到明天零点','This website':'当前网站','All websites':'所有网站','Pause':'暂停',

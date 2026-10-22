@@ -105,7 +105,9 @@ npm run package
 
 `npm run check` runs Node tests, builds the extension, then runs Chromium browser tests. Tests use synthetic text and localhost API fixtures. Output is `dist/`, with an installation archive at `release/saywell-VERSION.zip`. Versions in `package.json` and `manifest.json` must match.
 
-The check also enforces fixed input, practice-diff, scroll and active-countdown performance budgets. Run `npm run test:performance` for isolated core timing; CI retains measurement JSON alongside browser evidence. See [performance findings and budgets](docs/performance-review.md) for methods and limits.
+For repeated local testing, load this project's `dist` directory once in `chrome://extensions`. After `npm run build`, click Reload on the Saywell card and refresh the test webpage; no repeated ZIP extraction, removal or folder selection is needed. Keep using the same directory to preserve the installation identity. Switching from an older extracted directory may create a new installation: export its configuration first, then import and reconnect permissions/keys. ZIP files are for distribution.
+
+The check also enforces fixed input, practice-diff, scroll and active-process-ring performance budgets. Run `npm run test:performance` for isolated core timing; CI retains measurement JSON alongside browser evidence. See [performance findings and budgets](docs/performance-review.md) for methods and limits.
 
 | Command | Purpose |
 | --- | --- |
@@ -140,4 +142,4 @@ This remains a developer preview. Ordinary inputs and selected plain rich-text s
 - [Cloudflare deployment](docs/cloudflare-deployment.md)
 - [Development instructions](AGENTS.md)
 
-The logo combines an S with a conversational tail on forest green. Its editable source is `src/brand/mark.js`; the build produces SVG and multiple PNG sizes.
+The logo pairs cream and warm-orange speech shapes on forest green, representing a thought and its clearer expression. Its shared source is `src/brand/mark.js`; the build produces SVG, multiple PNG sizes and ICO. Icons offer localized hover help. After 180ms of quiet typing, one continuous activity ring spans the remaining input delay and processing wait until the first result arrives.

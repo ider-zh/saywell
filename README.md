@@ -116,6 +116,8 @@ npm run package
 
 如需使用已有的 Playwright 兼容 Chromium，可将 `INPUT_COACH_BROWSER` 设为其绝对路径。扩展无运行时 npm 依赖，不加载远程脚本。
 
+本地反复测试时，只需在 `chrome://extensions` **首次加载本项目的 `dist` 文件夹**。后续执行 `npm run build`，点击 Saywell 卡片的“重新加载”，再刷新测试网页，即可使用新代码；不必每次解压 ZIP、删除扩展或重新选择目录。ZIP 用于分发。始终使用同一目录可保持安装身份；从旧解压目录首次切换到 `dist` 可能成为新安装，可先导出原配置，导入后重新完成授权与密钥配置。
+
 `npm run check` 也会检查输入、练习 diff、滚动定位和自动建议圆环的性能预算，超限即失败。核心计时可用 `npm run test:performance` 单独运行；数值、测试方式和优化记录见[输入性能与回归预算](docs/performance-review.md)。CI 报告保留测量 JSON，便于比较后续更新。
 
 ## 自动构建
@@ -140,4 +142,4 @@ npm run package
 - [Cloudflare 部署](docs/cloudflare-deployment.md)
 - [开发约定](AGENTS.md)
 
-Logo 采用森林绿底色和带对话尾部的 S；源码在 `src/brand/mark.js`，构建时生成 SVG 和多尺寸 PNG。
+Logo 采用森林绿底色、奶油色与暖橙色双对话气泡，代表原句与更自然的表达；源码在 `src/brand/mark.js`，构建生成 SVG、多尺寸 PNG 和 ICO。图标悬停有中英文说明；进行中圆环在停止输入约 180 ms 后出现，连续覆盖输入延迟和接口处理等待，直到首个结果返回。

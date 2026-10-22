@@ -75,7 +75,7 @@ function updateSetupBadge(){
     const zh=uiLanguage==='zh-CN' || (!uiLanguage || uiLanguage==='auto') && chrome.i18n?.getUILanguage().startsWith('zh');
     await chrome.action.setBadgeText({text:needed?'!':''});
     await chrome.action.setBadgeBackgroundColor({color:'#aa4d25'});
-    await chrome.action.setTitle({title:needed?(zh?'Saywell · 需要网页授权，点击继续':'Saywell · Website permission needed — click to continue'):'Saywell'});
+    await chrome.action.setTitle({title:needed?(zh?'Saywell · 需要网页授权，点击继续':'Saywell · Website permission needed — click to continue'):(zh?'Saywell · 随写随译、润色表达、练习写作':'Saywell · Translate, polish and practise your writing')});
   });return badgeQueue;
 }
 async function activateOpenTabs(){

@@ -60,11 +60,10 @@ if (!globalThis.__inputCoach) {
   function focus(editor){if(active!==editor){invalidate();active=editor;mode=settings?.mode;}if(settings?.analytics && allowed() && !snapshots.has(editor))snapshots.set(editor,readEditor(editor));}
   async function suggest(manual=false){
     clearTimeout(timer);
-    tip.hideProgress();
-    if(changingSite || !settings?.enabled || !access() || snoozed() || !active?.isConnected || composing.has(active))return;
-    if(!allowed()){if(manual && settings.siteMode==='blacklist')showSitePanel();return;}
-    const editor=active, source=readEditor(editor);if(!source.trim() || source.length>6000)return;
-    const action=routeAction(source,mode || settings.mode,settings.llmEnabled,settings.targetLanguage || 'en');if(action.action==='none')return;
+    if(changingSite || !settings?.enabled || !access() || snoozed() || !active?.isConnected || composing.has(active)){if(!composing.has(active))tip.hideProgress();return;}
+    if(!allowed()){tip.hideProgress();if(manual && settings.siteMode==='blacklist')showSitePanel();return;}
+    const editor=active, source=readEditor(editor);if(!source.trim() || source.length>6000){tip.hideProgress();return;}
+    const action=routeAction(source,mode || settings.mode,settings.llmEnabled,settings.targetLanguage || 'en');if(action.action==='none'){tip.hideProgress();return;}
     const id=++sequence;
     // getRandomValues also works on granted HTTP pages, where randomUUID is unavailable.
     const historyRequestId=Array.from(crypto.getRandomValues(new Uint8Array(16)),byte=>byte.toString(16).padStart(2,'0')).join(''),historyGeneration=settings.historyGeneration || 0,historyEnabled=settings.historyLimit!==0;
@@ -108,7 +107,7 @@ if (!globalThis.__inputCoach) {
       if(valid())return send({type:'suggest',lane:'mt',text:source,mode:mode || settings.mode});
     }));
     if(useLLM)jobs.push(run('llm',()=>send({type:'suggest',lane:'llm',text:source,mode:mode || settings.mode})));
-    if(!jobs.length)return;
+    if(!jobs.length){tip.hideProgress();return;}
     await Promise.allSettled(jobs);
   }
   function schedule(text){if(!settings?.autoSuggest || !settings.enabled || !allowed())return;
@@ -118,7 +117,7 @@ if (!globalThis.__inputCoach) {
     // Incomplete sentences get a little more quiet time; never request every keypress.
     const delay=settings.debounce+(/[.!?。！？\n]\s*$/.test(text)?0:600);
     timer=setTimeout(()=>suggest(false),delay);
-    tip.queueProgress(active,{duration:delay,action:action.action,site:currentSite()});
+    tip.queueProgress(active,{action:action.action,site:currentSite()});
   }
   function input(e,settled=false,candidate){
     const editor=candidate || editorFor(e.composedPath()[0]);if(!editor || applying)return;
