@@ -2,9 +2,11 @@ import {resolveLanguage} from '../core/locale.js';
 import {blockedRule} from '../core/language.js';
 export function siteInfo(host,settings,browserLanguage='en'){
   const rule=blockedRule(host,settings);
-  return {host,mode:settings.siteMode || 'blacklist',blocked:Boolean(rule),rule,canRemove:rule?.toLowerCase()===host.toLowerCase(),language:resolveLanguage(settings.uiLanguage,browserLanguage),preferences:settings.sitePreferences || {},defaults:settings.globalDefaults || {},profiles:settings.llmChoices || [],llmNeedsConnection:Boolean(settings.llmNeedsConnection)};
+  return {host,mode:settings.siteMode || 'blacklist',blocked:Boolean(rule),rule,canRemove:rule?.toLowerCase()===host.toLowerCase(),language:resolveLanguage(settings.uiLanguage,browserLanguage),preferences:settings.sitePreferences || {},defaults:settings.globalDefaults || {},profiles:settings.llmChoices || [],llmNeedsConnection:Boolean(settings.llmNeedsConnection),llmNeedsUnlock:Boolean(settings.llmNeedsUnlock)};
 }
 const chinese={
+  'Unlock the vault in Settings to use saved API keys.':'请在设置中解锁保险库，以使用保存的 API 密钥。',
+  'Unlock vault in Settings':'去设置解锁保险库',
   'AI is not connected. Connect the selected configuration to restore AI translation and polishing.':'大模型尚未连接，请连接所选配置以恢复 AI 翻译与润色。',
   'Connect AI in Settings':'去设置连接大模型',
   'Open Settings':'打开设置',

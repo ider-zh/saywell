@@ -1,5 +1,6 @@
 import {apiURL} from '../core/security.js';
-import {fetchJSON,fetchText,ProviderError} from './http.js';
+import {normalizeBasic} from './basic.js';
+import {fetchJSON,fetchText,jsonPost,ProviderError} from './http.js';
 
 const pairs=[['zh','en'],['en','zh']];
 const code=lang=>lang==='zh'?'zh-Hans':'en';
@@ -71,3 +72,17 @@ export function createWebProviders({fetcher=fetch,now=Date.now}={}){
     }
   ];
 }
+
+// Historical protocol fixture only; not imported by the store worker.
+export function createLegacyEdgeProvider(fetcher=fetch){return {
+      id:'microsoft', name:'Microsoft Edge (experimental)', category:'basic', pairs:[['zh','en'],['en','zh']],
+      available:async config=>Boolean(config.endpoint),
+      async translate(text,config,pair={source:'zh',target:'en'}){
+        const url=new URL(apiURL(config.endpoint,'/translate/translatetext'));
+        const code=lang=>lang==='zh'?'zh-CHS':'en';url.searchParams.set('from',code(pair.source));url.searchParams.set('to',code(pair.target));
+        const data=await fetchJSON(url.toString(),jsonPost([text]),8000,fetcher);
+        const result=data?.[0]?.translations?.find(t=>t.to===code(pair.target)) || data?.[0]?.translations?.[0];
+        if(typeof result?.text!=='string' || !result.text.trim())throw new ProviderError('response','Microsoft Edge returned no usable translation.');
+        return {text:normalizeBasic(result.text)};
+      }
+    };}

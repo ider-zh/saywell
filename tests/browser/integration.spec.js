@@ -5,7 +5,7 @@ test('real MV3 messaging, automatic failover, local analytics and LLM adapter wo
   const requests=[];let failMemory=false,failEdge=false,context;
   const server=createServer(async(req,res)=>{
     const url=new URL(req.url,'http://localhost');let body='';for await(const chunk of req)body+=chunk;
-    if(url.pathname==='/translate/translatetext'){requests.push({kind:'microsoft',body:JSON.parse(body)});res.writeHead(failEdge?503:200,{'content-type':'application/json'});res.end(JSON.stringify([{translations:[{text:'Microsoft fallback works.',to:'en'}]}]));}
+    if(url.pathname==='/translate' && url.searchParams.has('api-version')){requests.push({kind:'azure',body:JSON.parse(body)});res.writeHead(failEdge?503:200,{'content-type':'application/json'});res.end(JSON.stringify([{translations:[{text:'Azure fallback works.',to:'en'}]}]));}
     else if(url.pathname==='/get'){requests.push({kind:'mymemory',text:url.searchParams.get('q')});res.writeHead(failMemory?503:200,{'content-type':'application/json'});res.end(JSON.stringify({responseStatus:200,responseData:{translatedText:'Hello, world.'}}));}
     else if(url.pathname==='/languages'){res.writeHead(200,{'content-type':'application/json'});res.end(JSON.stringify([{code:'zh',targets:['en']}]));}
     else if(url.pathname==='/translate'){requests.push({kind:'libre',body:JSON.parse(body)});res.writeHead(200,{'content-type':'application/json'});res.end(JSON.stringify({translatedText:'Please review this PR.'}));}
@@ -22,13 +22,10 @@ test('real MV3 messaging, automatic failover, local analytics and LLM adapter wo
     context=await chromium.launchPersistentContext(path.join(root,'profile'),{channel:'chromium',...(process.env.INPUT_COACH_BROWSER?{executablePath:process.env.INPUT_COACH_BROWSER}:{}),headless:true,args:[`--disable-extensions-except=${path.join(root,'extension')}`,`--load-extension=${path.join(root,'extension')}`]});
     const worker=context.serviceWorkers()[0] || await context.waitForEvent('serviceworker');const id=new URL(worker.url()).host;
     const ui=await context.newPage();await ui.goto(`chrome-extension://${id}/settings.html`);
-    await ui.getByRole('button',{name:'Enable free translation',exact:true}).click();
-    await expect(ui.getByRole('status')).toContainText('No-key fallback enabled.');
-    const preset=await ui.evaluate(async()=>{const r=await chrome.runtime.sendMessage({type:'state'});return r.data;});
-    expect(preset.settings.basic.microsoft.consent).toBe(true);expect(preset.settings.basic.mymemory.consent).toBe(true);expect(preset.hasKeys.llm).toBe(false);expect(preset.settings.basicFallback).toBe(true);expect(requests).toEqual([]);
+    await expect(ui.locator('#enable-free')).toBeHidden();expect(requests).toEqual([]);
     const configure=async llm=>{
       const reply=await ui.evaluate(async({base,llm})=>{
-        const state=await chrome.runtime.sendMessage({type:'state'});const s=state.data.settings;s.siteOrigins=[base+'/*'];s.debounce=400;s.basicEngine='auto';s.basic.googleweb.consent=false;s.basic.bing.consent=false;s.basic.microsoft={consent:false,endpoint:base};s.basic.mymemory={consent:true,endpoint:base};s.basic.libre={consent:true,endpoint:base};
+        const state=await chrome.runtime.sendMessage({type:'state'});const s=state.data.settings;s.siteOrigins=[base+'/*'];s.debounce=400;s.basicEngine='auto';s.basicOrder=['mymemory','azure','libre','google','googleweb','bing','microsoft'];s.basic.googleweb.consent=false;s.basic.bing.consent=false;s.basic.microsoft={consent:false,endpoint:base};s.basic.mymemory={consent:true,endpoint:base};s.basic.libre={consent:true,endpoint:base};
         s.llm={...s.llm,enabled:llm,provider:'ollama',endpoint:base+'/v1',model:'fixture',consent:llm};
         return chrome.runtime.sendMessage({type:'save-settings',settings:s});
       },{base,llm});expect(reply.ok).toBe(true);
@@ -57,12 +54,12 @@ test('real MV3 messaging, automatic failover, local analytics and LLM adapter wo
     failMemory=true;await draft.fill('请检查这个 PR。');await expect(tip.getByText('Please review this PR.',{exact:true})).toBeVisible();await expect(tip.getByText('Basic translation · LibreTranslate')).toBeVisible();expect(requests.some(r=>r.kind==='libre')).toBe(true);
     const updateFallback=async enabled=>{
       const reply=await ui.evaluate(async({base,enabled})=>{
-        const r=await chrome.runtime.sendMessage({type:'state'});const s=r.data.settings;s.basicEngine='mymemory';s.basicFallback=enabled;s.basic.microsoft={consent:true,endpoint:base};return chrome.runtime.sendMessage({type:'save-settings',settings:s});
+        const r=await chrome.runtime.sendMessage({type:'state'});const s=r.data.settings;s.basicEngine='mymemory';s.basicFallback=enabled;s.basic.azure={consent:true,endpoint:base,region:'',rememberKey:false};return chrome.runtime.sendMessage({type:'save-settings',settings:s,keys:{azure:'synthetic-azure-key'}});
       },{base,enabled});expect(reply.ok).toBe(true);
     };
-    await updateFallback(true);await draft.fill('手动选择的引擎失败时也应回退。');await expect(tip.getByText('Microsoft fallback works.',{exact:true})).toBeVisible();expect(requests.find(r=>r.kind==='microsoft').body).toEqual(['手动选择的引擎失败时也应回退。']);
+    await updateFallback(true);await draft.fill('手动选择的引擎失败时也应回退。');await expect(tip.getByText('Azure fallback works.',{exact:true})).toBeVisible();expect(requests.find(r=>r.kind==='azure').body).toEqual([{Text:'手动选择的引擎失败时也应回退。'}]);
     failEdge=true;await draft.fill('微软接口不可用时尝试下一个授权引擎。');await expect(tip.getByText('Please review this PR.',{exact:true})).toBeVisible();
-    const report=await ui.evaluate(async()=>{const r=await chrome.runtime.sendMessage({type:'state'});return r.data.basicStatus;});expect(report.attempts.some(a=>a.id==='microsoft'&&a.status==='server')).toBe(true);expect(report.engine).toBe('LibreTranslate');expect(JSON.stringify(report)).not.toContain('微软接口');
+    const report=await ui.evaluate(async()=>{const r=await chrome.runtime.sendMessage({type:'state'});return r.data.basicStatus;});expect(report.attempts.some(a=>a.id==='azure'&&a.status==='server')).toBe(true);expect(report.engine).toBe('LibreTranslate');expect(JSON.stringify(report)).not.toContain('微软接口');
     await updateFallback(false);const before=requests.length;await draft.fill('关闭回退后只测试主引擎。');await expect(tip.getByText(/MyMemory: Provider returned HTTP 503/)).toBeVisible();expect(requests.slice(before).map(r=>r.kind)).toEqual(['mymemory']);
     await configure(true);await draft.fill('We should make this process more simple.');await expect(tip.getByRole('button',{name:'streamline',exact:true})).toBeVisible();expect(requests.some(r=>r.kind==='llm'&&r.body.model==='fixture')).toBe(true);
     await tip.getByRole('button',{name:'streamline',exact:true}).click();await tip.getByRole('button',{name:'Save for review',exact:true}).click();

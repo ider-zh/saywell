@@ -12,7 +12,7 @@ test('first-use denial persists warnings, one authorization enables free feature
     context=await chromium.launchPersistentContext(path.join(root,'profile'),{channel:'chromium',locale:'en-US',...(process.env.INPUT_COACH_BROWSER?{executablePath:process.env.INPUT_COACH_BROWSER}:{}),headless:true,args:[`--disable-extensions-except=${extension}`,`--load-extension=${extension}`]});
     const worker=context.serviceWorkers()[0] || await context.waitForEvent('serviceworker'),id=new URL(worker.url()).host;
     const page=await context.newPage();await page.goto(`chrome-extension://${id}/welcome.html`);
-    await expect(page.locator('#setup-enable')).toHaveText('Allow and start using Saywell');
+    await expect(page.locator('#setup-enable')).toHaveText('Agree and enable Saywell');
     await page.screenshot({path:'test-results/setup-welcome-en.png'});
     await expect.poll(()=>worker.evaluate(()=>chrome.action.getBadgeText({}))).toBe('!');
     // Simulate the browser refusing the first native permission request.
@@ -28,7 +28,7 @@ test('first-use denial persists warnings, one authorization enables free feature
     await expect(settings.locator('#setup-notice')).toBeHidden();await expect(popup.locator('#setup-notice')).toBeHidden();
     const saved=await worker.evaluate(async()=>(await chrome.storage.local.get('settings')).settings);
     expect(saved).toMatchObject({enabled:true,autoSuggest:true,basicFallback:true,basicEngine:'auto',maxWords:3,siteMode:'blacklist',siteOrigins:['https://*/*','http://*/*'],llm:{enabled:true,consent:true,provider:'saywell',thinking:false}});
-    for(const id of ['googleweb','bing','microsoft','mymemory'])expect(saved.basic[id].consent).toBe(true);
+    for(const id of ['googleweb','bing','microsoft','mymemory'])expect(saved.basic[id].consent).toBe(false);
     await worker.evaluate(async()=>{
       const raw=chrome.permissions.contains;globalThis.__contains=raw;chrome.permissions.contains=async query=>query.origins?.includes('http://*/*')?false:raw(query);
       await chrome.storage.local.set({uiLanguage:'zh-CN'});

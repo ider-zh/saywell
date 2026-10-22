@@ -1,12 +1,14 @@
 import {build} from 'esbuild';
 import {mkdir,copyFile,readFile} from 'node:fs/promises';
 import {buildBrand} from './brand-icons.mjs';
+import {buildPrivacy} from './privacy-pages.mjs';
 await mkdir('dist/icons',{recursive:true});
 await build({entryPoints:{background:'src/background.js',content:'src/content/index.js'},outdir:'dist',bundle:true,format:'iife',target:'chrome116',legalComments:'none'});
 await build({entryPoints:Object.fromEntries(['dashboard','settings','popup','vocabulary','welcome','history'].map(x=>[x,`src/ui/${x}.js`])),outdir:'dist',bundle:true,format:'esm',target:'chrome116',legalComments:'none'});
 await copyFile('manifest.json','dist/manifest.json');await copyFile('src/ui/styles.css','dist/styles.css');
 for(const page of ['dashboard','settings','popup','vocabulary','welcome','history'])await copyFile(`public/${page}.html`,`dist/${page}.html`);
 await buildBrand('dist/icons');
+await buildPrivacy();
 const manifest=JSON.parse(await readFile('dist/manifest.json','utf8'));
 if(manifest.host_permissions || manifest.content_scripts)throw new Error('Website access must be optional.');
 console.log('Built Saywell 0.1.0 → dist/ (MV3, all scripts bundled locally)');

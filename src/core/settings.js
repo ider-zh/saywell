@@ -2,6 +2,7 @@ import {LLM_PROVIDERS} from './llm-providers.js';
 import {HOSTED_AI_ENDPOINT,HOSTED_AI_MODEL,isBuiltinHostedEndpoint} from './hosted-ai.js';
 export const BASIC_ORDER = ['googleweb','bing','microsoft','mymemory','libre','azure','google'];
 const LEGACY_BASIC_ORDER=['microsoft','mymemory','libre','azure','google'];
+export const RETIRED_BASIC_IDS=['googleweb','bing','microsoft'];
 export const BASIC_KEY_IDS = ['libre','azure','google'];
 export const llmKeyId=id=>id==='default'?'llm':`llm:${id}`;
 export const llmConfig=profile=>Object.fromEntries(Object.keys(DEFAULTS.llm).map(key=>[key,profile[key] ?? DEFAULTS.llm[key]]));
@@ -41,12 +42,12 @@ export function mergeSettings(raw = {}) {
     if(p.endpoint.replace(/\/+$/,'')!==HOSTED_AI_ENDPOINT)p.consent=false;
     p.endpoint=HOSTED_AI_ENDPOINT;p.model=HOSTED_AI_MODEL;
   }
-  return { ...DEFAULTS, ...raw,
+  return { ...DEFAULTS, ...raw,basicEngine:RETIRED_BASIC_IDS.includes(raw.basicEngine)?'auto':raw.basicEngine ?? DEFAULTS.basicEngine,
     // Append new engines to an existing complete order, without changing old priorities or consent.
     basicOrder:Array.isArray(raw.basicOrder) && raw.basicOrder.length===LEGACY_BASIC_ORDER.length && new Set(raw.basicOrder).size===LEGACY_BASIC_ORDER.length && raw.basicOrder.every(id=>LEGACY_BASIC_ORDER.includes(id))?[...raw.basicOrder,'googleweb','bing']:raw.basicOrder ?? [...BASIC_ORDER],
     // Preserve existing explicit allowlists; fresh/previous opt-in-only installs default to blacklist mode.
     siteMode:raw.siteMode ?? (raw.allowlist?.length ? 'whitelist' : 'blacklist'),
-    basic: Object.fromEntries(Object.entries(DEFAULTS.basic).map(([id, value]) => [id, { ...value, ...raw.basic?.[id] }])),
+    basic: Object.fromEntries(Object.entries(DEFAULTS.basic).map(([id, value]) => [id, { ...value, ...raw.basic?.[id],...(RETIRED_BASIC_IDS.includes(id)?{consent:false}:{}) }])),
     llm: active?llmConfig(active):llm, llmProfiles:profiles,activeLlmId
   };
 }
@@ -57,7 +58,7 @@ export function publicSettings(raw) {
     basicFallback:s.basicFallback,
     mode: s.mode,targetLanguage:s.targetLanguage, style: s.style, debounce: s.debounce, difficulty: s.difficulty, maxWords: s.maxWords,
     siteMode:s.siteMode,siteOrigins:s.siteOrigins, allowlist: s.allowlist, blocklist: s.blocklist,
-    llmEnabled: s.llm.enabled && s.llm.consent,llmNeedsConnection:s.llm.enabled && !s.llm.consent };
+    llmEnabled: s.llm.enabled && s.llm.consent,llmNeedsConnection:s.llm.enabled && !s.llm.consent,remoteMTReady:Object.values(s.basic).some(config=>config.consent) };
 }
 
 const enums = { targetLanguage:['en','zh'],siteMode:['blacklist','whitelist'],basicEngine: ['auto','builtin',...BASIC_ORDER], mode: ['auto','translate','polish','explain'],

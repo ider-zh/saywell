@@ -1,5 +1,12 @@
 import {t,locale,translateError} from './i18n.js';
 import {createMark} from '../brand/mark.js';
+const privacyFooter=document.createElement('footer'),privacyLink=document.createElement('a');privacyFooter.className='privacy-footer';privacyFooter.append(privacyLink);document.body.append(privacyFooter);
+function privacyLabel(){privacyLink.textContent=t('Privacy policy');privacyLink.href=locale()==='zh-CN'?'privacy.html':'privacy.en.html';}
+document.addEventListener('input-coach-languagechange',privacyLabel);privacyLabel();
+const vaultNotice=el('a',undefined,'vault-notice hidden');vaultNotice.href='settings.html#local-vault';privacyFooter.prepend(vaultNotice);
+async function refreshVaultNotice(){if(!globalThis.chrome?.runtime?.id)return;const info=await send('vault-status');vaultNotice.textContent=t('Vault locked · Unlock in Settings');vaultNotice.classList.toggle('hidden',!info.locked);}
+document.addEventListener('input-coach-languagechange',()=>refreshVaultNotice().catch(()=>{}));
+if(globalThis.chrome?.runtime?.id){chrome.storage.onChanged.addListener(changes=>{if(changes.saywellVault || changes.saywellPrivateSession)refreshVaultNotice().catch(()=>{});});refreshVaultNotice().catch(()=>{});}
 for(const holder of document.querySelectorAll('.brand-mark')){holder.replaceChildren(createMark(document));const target=holder.closest('.brand') || holder;target.dataset.i18nTitle='Saywell · Translate, polish and practise your writing';}
 // Existing localized accessible names also provide native hover help for small controls.
 for(const control of document.querySelectorAll('.icon-button[data-i18n-aria-label]'))control.dataset.i18nTitle=control.dataset.i18nAriaLabel;

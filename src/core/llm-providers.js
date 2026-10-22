@@ -2,7 +2,7 @@ import {HOSTED_AI_ENDPOINT,HOSTED_AI_MODEL} from './hosted-ai.js';
 // Shared provider identities and connection presets.
 export const LLM_PROVIDERS = Object.freeze({
   saywell:{name:'Saywell Free AI',endpoint:HOSTED_AI_ENDPOINT,model:HOSTED_AI_MODEL,example:HOSTED_AI_MODEL,
-    help:'Developer-sponsored Cloudflare AI for the prerelease period. No account or key is needed. Shared free quota resets daily at 08:00 Shanghai time; when exhausted, MT remains available. Qwen 3.8 27B is fixed, thinking is off by default, and the service can be ended before public release.'},
+    help:'Developer-sponsored Cloudflare AI. No account or key is needed. Shared free quota resets daily at 08:00 Shanghai time. Qwen3 30B A3B FP8 is fixed and thinking is off by default. Availability and quota may change; on-device or separately connected machine translation remains available when supported.'},
   compatible:{name:'Custom LLM',endpoint:''},
   openai:{name:'OpenAI',endpoint:'https://api.openai.com/v1'},
   deepseek:{name:'DeepSeek',endpoint:'https://api.deepseek.com'},

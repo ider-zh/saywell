@@ -22,6 +22,9 @@ function render(){
   filtered=data.records.filter(row=>[row.hostname,row.source,actionLabel(row.action),...Object.values(row.results).flatMap(result=>[result.engine,result.text,result.explanation || ''])].join('\n').toLocaleLowerCase().includes(query));
   text('#history-count',t('{shown} of {total} records',{shown:filtered.length,total:data.records.length}));$('#history-limit').value=String(data.limit);
   $('#history-warning').classList.toggle('hidden',!data.writeError);$('#history-export').disabled=!filtered.length;$('#history-clear').disabled=!data.records.length;
+  let notice=$('#history-vault');if(!notice){notice=el('p',undefined,'help');notice.id='history-vault';$('#history-count').after(notice);}
+  notice.replaceChildren(document.createTextNode(t(data.vault?.locked?'Vault locked. History recording is paused until you unlock it.':data.vault?.configured?'History is encrypted in your local vault.':'History is encrypted for this browser session. Create a vault to keep it after restart.')));
+  const link=el('a',t('Local vault'));link.href='settings.html#local-vault';notice.append(document.createTextNode(' '),link);
   $('#history-empty').classList.toggle('hidden',Boolean(filtered.length));$('#history-list').replaceChildren();shown=0;more();
 }
 async function refresh(){const current=++revision,result=await send('get-history');if(current===revision){data=result;render();}}
@@ -32,6 +35,6 @@ $('#history-clear').addEventListener('click',async()=>{try{await send('clear-his
 $('#history-export').addEventListener('click',()=>{download('saywell-history.json',{format:'saywell-history',version:1,exportedAt:new Date().toISOString(),records:filtered});toast('History exported.');});
 document.addEventListener('input-coach-languagechange',render);
 if(!previewNotice()){
-  chrome.storage.onChanged.addListener((changes,area)=>{if(area==='local' && (changes.translationHistory || changes.historyPreferences) || area==='session' && changes.historyWriteError)refresh().catch(error=>status(error.message,true));});
+  chrome.storage.onChanged.addListener((changes,area)=>{if(area==='local' && (changes.translationHistory || changes.historyPreferences || changes.saywellPrivateData || changes.saywellVault) || area==='session' && (changes.historyWriteError || changes.saywellPrivateSession))refresh().catch(error=>status(error.message,true));});
   refresh().catch(error=>status(error.message,true));
 }render();

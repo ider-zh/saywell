@@ -229,7 +229,7 @@ export class Tooltip {
     const profiles=site.profiles.map(p=>[p.id,profileLabel(p)]),selected=draft.llmProfileId;
     if(selected && !site.profiles.some(p=>p.id===selected))profiles.push([selected,label('Configuration removed')]);
     field('llmProfileId','LLM configuration','Website LLM configuration',[['@off',label('MT only')],...profiles],site.profiles.find(p=>p.id===site.defaults.activeLlmId)?.name);
-    const engines=[['auto',label('On-device first')],['builtin',label('On-device')],['googleweb',label('Google Translate (web)')],['bing',label('Microsoft Bing (web)')],['microsoft',label('Microsoft Edge')],['mymemory','MyMemory'],['libre','LibreTranslate'],['azure',label('Microsoft Azure')],['google','Google Cloud']];
+    const engines=[['auto',label('On-device first')],['builtin',label('On-device')],['mymemory','MyMemory'],['libre','LibreTranslate'],['azure',label('Microsoft Azure')],['google','Google Cloud']];
     field('basicEngine','Translation engine','Website translation engine',engines,engines.find(([value])=>value===site.defaults.basicEngine)?.[1]);
     const save=async resetAll=>{
       this.handlers.onSiteControlStart?.();this.shadow.querySelector('.close')?.focus({preventScroll:true});
@@ -303,6 +303,7 @@ export class Tooltip {
   updateParallel({mtResult,pendingLLM,llmError,mtError,site}){
     if(!this.parallelArea)return;const area=this.parallelArea;area.replaceChildren();
     const label=message=>site?siteText(site,message):message;
+    if(site?.llmNeedsUnlock){area.append(node('p',label('Unlock the vault in Settings to use saved API keys.'),{class:'note'}),this.button(label('Unlock vault in Settings'),()=>chrome.runtime.sendMessage({type:'open-settings'})));}
     if(site?.llmNeedsConnection){const note=node('p',label('AI is not connected. Connect the selected configuration to restore AI translation and polishing.'),{class:'note'}),connect=this.button(label('Connect AI in Settings'),()=>chrome.runtime.sendMessage({type:'open-settings'}));connect.className='mini-entry';area.append(note,connect);}
     if(pendingLLM)area.append(node('p',label('LLM refinement is still running…'),{class:'note',role:'status'}));
     if(llmError)area.append(node('p',`${label('LLM unavailable; showing MT.')} ${label(llmError)}`,{class:'note',role:'status'}));

@@ -50,6 +50,7 @@ test('Bing checks access again after page loading and never posts a draft after 
 test('web fallback is ordered, consented and granted; rate-limit diagnostics omit drafts and temporary Bing parameters',async()=>{
   const calls=[],web=createWebProviders({fetcher:async(url)=>{calls.push(url);return url.endsWith('/translator')?new Response('verification required'):json({},429,{'retry-after':'4'});}});
   const s=mergeSettings({basic:{googleweb:{consent:true},bing:{consent:true},mymemory:{consent:true}}}),providers=[...web,{id:'mymemory',name:'MyMemory',available:async()=>true,translate:async()=>({text:'Fallback.'})}];
+  s.basic.googleweb.consent=true;s.basic.bing.consent=true; // Protocol unit fixture, not an enabled store profile.
   const router=new BasicRouter(providers),result=await router.translate('不保存的测试文本。',s,async()=>true);assert.equal(result.providerId,'mymemory');assert.deepEqual(result.attempts.map(a=>a.status),['rate','unavailable','success']);assert.ok(router.health.googleweb.until>Date.now());
   assert.ok(!JSON.stringify({attempts:result.attempts,health:router.health}).includes('不保存'));calls.length=0;s.basic.googleweb.consent=false;s.basic.bing.consent=false;await new BasicRouter(providers).translate('中',s,async()=>true);assert.equal(calls.length,0);
   s.basic.googleweb.consent=true;await new BasicRouter(providers).translate('中',s,async endpoint=>!endpoint.includes('googleapis'));assert.equal(calls.length,0);

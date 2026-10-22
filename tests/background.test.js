@@ -1,6 +1,7 @@
 import test,{beforeEach} from 'node:test';import assert from 'node:assert/strict';
 import {mergeSettings,llmConfig} from '../src/core/settings.js';
 import {LLM_PROVIDERS} from '../src/core/llm-providers.js';
+import {createPrivateStorage} from '../src/core/private-storage.js';
 import {exportConfigBackup} from '../src/core/config-backup.js';
 const stores={local:{},session:{}},permissions=new Set(),network=[];let listener,bingPageHook;
 const event=()=>({listeners:[],addListener(fn){this.listeners.push(fn);}});
@@ -24,15 +25,28 @@ globalThis.chrome.tabs.create=async value=>opened.push(value.url);
 globalThis.chrome.permissions.onAdded=event();
 globalThis.chrome.permissions.contains=async({origins})=>origins.every(p=>permissions.has(p) || p.startsWith('https://') && permissions.has('https://*/*') || p.startsWith('http://') && permissions.has('http://*/*'));
 await import('../src/background.js');
+const privateView=createPrivateStorage(chrome.storage.local,chrome.storage.session);
+const value=async field=>(await privateView.get(field))[field];
+const createVault=()=>message({type:'vault-create',password:'Synthetic unit vault password'});
 const ui={url:'chrome-extension://unit/settings.html'},site={url:'https://chatgpt.com/',tab:{id:2},frameId:0};
 const message=(payload,sender=ui)=>new Promise(resolve=>listener(payload,sender,resolve));
 beforeEach(()=>{stores.local={settings:mergeSettings({llm:{},siteOrigins:['https://chatgpt.com/*']})};stores.session={};permissions.clear();permissions.add('https://chatgpt.com/*');network.length=0;bingPageHook=null;});
+
+test('vault lock rejects late writes and content access while preserving private data for explicit unlock',async()=>{
+  assert.equal((await createVault()).ok,true);const generation=stores.local.historyGeneration;
+  const entry={type:'record-history',generation,requestId:'vault-record',source:'Synthetic vault history',action:'translate',targetLanguage:'en',lane:'mt',result:{text:'Synthetic result',engine:'MT'}};
+  assert.equal((await message(entry,site)).ok,true);
+  for(const type of ['vault-status','vault-create','vault-unlock','vault-lock','vault-erase'])assert.equal((await message({type,password:'Synthetic unit vault password',confirm:true},site)).ok,false);
+  await message({type:'vault-lock'});assert.equal((await message(entry,site)).data,false);assert.equal((await message({...entry,generation:stores.local.historyGeneration},site)).data,false);assert.equal((await message({type:'public-settings'},site)).data.historyLimit,0);
+  assert.deepEqual((await message({type:'get-history'})).data.records,[]);await message({type:'vault-unlock',password:'Synthetic unit vault password'});assert.equal((await message({type:'get-history'})).data.records[0].source,entry.source);
+  assert.ok(!JSON.stringify(stores.local).includes(entry.source));assert.equal((await message({type:'vault-erase'})).ok,false);
+});
 
 test('temporary pauses are scoped, persistent, expire by time and gate suggestions, analytics and local history',async()=>{
   const before=Date.now();assert.equal((await message({type:'set-snooze',scope:'site',duration:'1h'},site)).ok,true);
   assert.ok(stores.local.snoozes.sites['chatgpt.com']>=before+3600000);assert.equal(stores.local.settings.enabled,true);
   assert.ok((await message({type:'public-settings'},site)).data.snoozeUntil>Date.now());assert.equal((await message({type:'suggest',text:'合成测试',lane:'mt'},site)).ok,false);
-  await message({type:'metric',delta:{typed:10}},site);assert.equal(stores.local.analytics,undefined);
+  await message({type:'metric',delta:{typed:10}},site);assert.equal((await value('analytics')),undefined);
   assert.equal((await message({type:'record-history'},site)).ok,false);assert.equal(network.length,0);
   assert.equal((await message({type:'get-snooze'},site)).ok,false);
   const other={url:'https://other.example/',tab:{id:3}};assert.equal((await message({type:'set-snooze',scope:'all',duration:'4h'},other)).ok,false);
@@ -42,7 +56,7 @@ test('temporary pauses are scoped, persistent, expire by time and gate suggestio
   await message({type:'clear-snooze',scope:'all'});assert.ok((await message({type:'get-snooze',tabId:2})).data.siteUntil>Date.now());
   await message({type:'clear-snooze',scope:'site',tabId:2});assert.equal((await message({type:'public-settings'},site)).data.snoozeUntil,0);
   stores.local.snoozes={all:Date.now()-1,sites:{'chatgpt.com':Date.now()-1}};
-  assert.equal((await message({type:'public-settings'},site)).data.snoozeUntil,0);await message({type:'metric',delta:{typed:7}},site);assert.ok(stores.local.analytics);
+  assert.equal((await message({type:'public-settings'},site)).data.snoozeUntil,0);await message({type:'metric',delta:{typed:7}},site);assert.ok((await value('analytics')));
   assert.equal((await message({type:'export-config'})).data.snoozes,undefined);
 });
 
@@ -59,15 +73,15 @@ test('local history is site-gated, private to extension pages, merges lanes and 
 
 test('history clear/disable generations reject late results; rolling limits trim immediately and retain existing records when switched off',async()=>{
   const entry={type:'record-history',generation:0,requestId:'before-clear',source:'固定测试',action:'translate',targetLanguage:'en',lane:'mt',result:{text:'Synthetic test',engine:'MT'}};
-  await message(entry,site);await message({type:'clear-history'});assert.equal((await message({...entry,lane:'llm'},site)).data,false);assert.equal(stores.local.translationHistory.length,0);
+  await message(entry,site);await message({type:'clear-history'});assert.equal((await message({...entry,lane:'llm'},site)).data,false);assert.equal((await value('translationHistory')).length,0);
   const generation=stores.local.historyGeneration;for(let i=0;i<55;i++)await message({...entry,generation,requestId:'request-'+i},site);
-  await message({type:'set-history-limit',limit:50});assert.equal(stores.local.translationHistory.length,50);assert.ok(stores.local.translationHistory[0].id.endsWith('request-54'));
+  await message({type:'set-history-limit',limit:50});assert.equal((await value('translationHistory')).length,50);assert.ok((await value('translationHistory'))[0].id.endsWith('request-54'));
   assert.equal((await message({type:'set-history-limit',limit:999999})).ok,false);
-  await message({type:'set-history-limit',limit:0});assert.equal(stores.local.translationHistory.length,50);
-  assert.equal((await message({...entry,requestId:'disabled',generation:stores.local.historyGeneration},site)).data,false);assert.equal(stores.local.translationHistory.length,50);
+  await message({type:'set-history-limit',limit:0});assert.equal((await value('translationHistory')).length,50);
+  assert.equal((await message({...entry,requestId:'disabled',generation:stores.local.historyGeneration},site)).data,false);assert.equal((await value('translationHistory')).length,50);
   await message({type:'set-history-limit',limit:100});const latest=stores.local.historyGeneration;
-  await message({...entry,requestId:'new-record',generation:latest},site);const id=stores.local.translationHistory[0].id;
-  await message({type:'remove-history',id});assert.equal((await message({...entry,requestId:'new-record',generation:latest,lane:'llm'},site)).data,false);assert.ok(!stores.local.translationHistory.some(row=>row.id===id));
+  await message({...entry,requestId:'new-record',generation:latest},site);const id=(await value('translationHistory'))[0].id;
+  await message({type:'remove-history',id});assert.equal((await message({...entry,requestId:'new-record',generation:latest,lane:'llm'},site)).data,false);assert.ok(!(await value('translationHistory')).some(row=>row.id===id));
 });
 
 test('fresh install opens first-use authorization; no grant means no consent or network; one completion enables all free features',async()=>{
@@ -81,7 +95,7 @@ test('fresh install opens first-use authorization; no grant means no consent or 
   permissions.add('https://*/*');permissions.add('http://*/*');
   assert.equal((await message({type:'complete-setup'})).ok,true);assert.equal(badges.at(-1),'');
   const s=stores.local.settings;assert.equal(s.llm.enabled,true);assert.equal(s.llm.consent,true);assert.equal(s.llm.thinking,false);assert.equal(s.maxWords,3);assert.equal(s.autoSuggest,true);
-  for(const id of ['googleweb','bing','microsoft','mymemory'])assert.equal(s.basic[id].consent,true);
+  for(const id of ['googleweb','bing','microsoft','mymemory'])assert.equal(s.basic[id].consent,false);
   assert.deepEqual(s.siteOrigins,['https://*/*','http://*/*']);assert.equal(network.length,0);
   s.dailyGoal=731;s.llm.enabled=false;permissions.delete('http://*/*');
   assert.equal((await message({type:'setup-status'})).data.needed,true);
@@ -115,18 +129,11 @@ test('tooltip sizes persist for the granted sender hostname, redact other hosts 
   const publicState=(await message({type:'public-settings'},site)).data;assert.equal(publicState.tooltipSizes,undefined);assert.ok(!JSON.stringify(publicState).includes('s1.test'));
 });
 
-test('web engines require independent consent and endpoint grants, keep page parameters transient and stop drafts after mid-bootstrap disable',async()=>{
-  const payload={type:'suggest',lane:'mt',text:'网页测试句子。'};
-  for(const id of ['googleweb','bing']){
-    const cfg=stores.local.settings.basic[id],origin=new URL(cfg.endpoint).origin+'/*';stores.local.settings.basicEngine=id;stores.local.settings.basicFallback=false;network.length=0;
-    assert.equal((await message(payload,site)).ok,false);permissions.add(origin);assert.equal((await message(payload,site)).ok,false);assert.equal(network.length,0);
-    cfg.consent=true;permissions.delete(origin);assert.equal((await message(payload,site)).ok,false);assert.equal(network.length,0);
-    permissions.add(origin);const reply=await message(payload,site);assert.equal(reply.ok,true);assert.equal(reply.data.providerId,id);assert.equal(network.length,id==='bing'?2:1);
-    const persisted=JSON.stringify(stores);assert.ok(!persisted.includes('worker-page-token'));assert.ok(!persisted.includes('网页测试句子'));assert.equal(stores.local.keys,undefined);
-  }
-  stores.local.settings.basic.bing.endpoint='https://revoked-bing.test';permissions.add('https://revoked-bing.test/*');network.length=0;
-  bingPageHook=()=>{stores.local.settings.basic.bing.consent=false;};assert.equal((await message(payload,site)).ok,false);assert.equal(network.length,1);assert.ok(network[0].url.endsWith('/translator'));
+test('store build retires experimental web providers and refuses their tests without network',async()=>{
+  for(const id of ['googleweb','bing','microsoft']){stores.local.settings.basic[id].consent=true;permissions.add(new URL(stores.local.settings.basic[id].endpoint).origin+'/*');assert.equal((await message({type:'test-basic',id})).ok,false);assert.equal((await message({type:'state'})).data.settings.basic[id].consent,false);}
+  assert.equal(network.length,0);
 });
+
 test('configuration transfer is trusted-only and never exports credentials, consent or practice data',async()=>{
   stores.session.keys={llm:'synthetic-backup-secret'};stores.local.analytics={private:'not-config'};stores.local.vocabulary=[{word:'private'}];
   stores.local.sitePreferences={'chatgpt.com':{targetLanguage:'zh'}};stores.local.tooltipPositions={'chatgpt.com':{x:.5,y:.4}};
@@ -136,6 +143,7 @@ test('configuration transfer is trusted-only and never exports credentials, cons
   assert.deepEqual(result.data.sitePreferences,stores.local.sitePreferences);assert.deepEqual(result.data.tooltipPositions,stores.local.tooltipPositions);assert.equal(network.length,0);
 });
 test('configuration import replaces preferences, preserves exact-identity keys and practice data, and resets authorization',async()=>{
+  await createVault();
   const a={...mergeSettings().llm,id:'default',name:'A',provider:'compatible',endpoint:'https://a.test/v1',model:'a',enabled:true,consent:true,rememberKey:true};
   const b={...a,id:'work',name:'B',endpoint:'https://b.test/v1',rememberKey:false},c={...a,id:'remove',name:'C',endpoint:'https://c.test/v1'};
   stores.local.settings=mergeSettings({siteOrigins:['https://chatgpt.com/*'],llmProfiles:[a,b,c]});stores.local.keys={llm:'keep-local','llm:remove':'remove-local',azure:'keep-azure'};stores.session.keys={'llm:work':'drop-changed'};
@@ -145,12 +153,12 @@ test('configuration import replaces preferences, preserves exact-identity keys a
   const backup=exportConfigBackup(incoming,{uiLanguage:'zh-CN',sitePreferences:{'chatgpt.com':{llmProfileId:'work'}},tooltipPositions:{'chatgpt.com':{x:.2,y:.9}}});
   const result=await message({type:'import-config',text:JSON.stringify(backup)});assert.equal(result.ok,true);assert.equal(result.data.skippedOrigins,1);
   assert.equal(stores.local.settings.activeLlmId,'work');assert.equal(stores.local.settings.llm.endpoint,'https://changed.test/v1');assert.equal(stores.local.settings.targetLanguage,'zh');assert.equal(stores.local.uiLanguage,'zh-CN');
-  assert.deepEqual(stores.local.settings.siteOrigins,['https://chatgpt.com/*']);assert.deepEqual(stores.local.keys,{llm:'keep-local',azure:'keep-azure'});assert.deepEqual(stores.session.keys,{});
+  assert.deepEqual(stores.local.settings.siteOrigins,['https://chatgpt.com/*']);assert.deepEqual((await value('keys')),{llm:'keep-local',azure:'keep-azure'});assert.deepEqual(stores.session.keys,{});
   assert.equal(stores.local.settings.llmProfiles[0].rememberKey,true);assert.equal(stores.local.settings.llmProfiles[1].rememberKey,false);
   for(const config of [...stores.local.settings.llmProfiles,...Object.values(stores.local.settings.basic)])assert.equal(config.consent,false);
   const publicAfterImport=(await message({type:'public-settings'},site)).data;assert.equal(publicAfterImport.llmEnabled,false);assert.equal(publicAfterImport.llmNeedsConnection,true);assert.ok(!JSON.stringify(publicAfterImport).includes('keep-local'));
   assert.deepEqual(stores.local.sitePreferences,backup.sitePreferences);assert.deepEqual(stores.local.tooltipPositions,backup.tooltipPositions);
-  assert.deepEqual(stores.local.analytics,{day:{typed:10}});assert.deepEqual(stores.local.vocabulary,[{word:'keep'}]);assert.deepEqual(stores.local.usage,{requests:7});assert.equal(network.length,0);
+  assert.deepEqual((await value('analytics')),{day:{typed:10}});assert.deepEqual((await value('vocabulary')),[{word:'keep'}]);assert.deepEqual(stores.local.usage,{requests:7});assert.equal(network.length,0);
 });
 test('invalid imports leave storage untouched and permission checks run again after preview',async()=>{
   stores.session.keys={llm:'stay'};const before=structuredClone(stores);
@@ -207,9 +215,9 @@ test('website selection never grants provider access, revives blocked sites, or 
   stores.local.settings.blocklist=[];stores.local.settings.llmProfiles.pop();
   assert.equal((await message({type:'public-settings'},site)).data.llmEnabled,false);assert.equal((await message({type:'suggest',lane:'llm',mode:'polish',text:'Synthetic.'},site)).ok,false);
   assert.equal(network.length,0);
-  await message({type:'set-site-preferences',preferences:{llmProfileId:null,mode:'translate',basicEngine:'microsoft',targetLanguage:'zh'}},site);
-  stores.local.settings.basic.microsoft.consent=true;permissions.add('https://edge.microsoft.com/*');
-  assert.equal((await message({type:'suggest',lane:'mt',text:'Hello.'},site)).ok,true);assert.match(network.at(-1).url,/from=en&to=zh-CHS/);
+  await message({type:'set-site-preferences',preferences:{llmProfileId:null,mode:'translate',basicEngine:'mymemory',targetLanguage:'zh'}},site);
+  stores.local.settings.basic.mymemory.consent=true;permissions.add('https://api.mymemory.translated.net/*');
+  assert.equal((await message({type:'suggest',lane:'mt',text:'Hello.'},site)).ok,true);assert.equal(new URL(network.at(-1).url).searchParams.get('langpair'),'en|zh-CN');
 });
 test('website settings capacity rejects overflow without discarding existing routing preferences',async()=>{
   stores.local.sitePreferences=Object.fromEntries(Array.from({length:300},(_,i)=>[`site${i}.test`,{mode:'polish'}]));
@@ -228,7 +236,7 @@ test('tooltip positions are scoped to the granted sender hostname and persist on
   assert.deepEqual(stores.local.tooltipPositions,{'other.example':{x:0,y:1}});
   permissions.clear();
   for(const type of ['get-tooltip-position','set-tooltip-position'])assert.equal((await message({type,position:{x:0,y:0}},site)).ok,false);
-  assert.equal(network.length,0);assert.equal(stores.local.analytics,undefined);
+  assert.equal(network.length,0);assert.equal((await value('analytics')),undefined);
 });
 test('tooltip preference storage evicts the oldest host and preserves other host positions',async()=>{
   stores.local.tooltipPositions=Object.fromEntries(Array.from({length:200},(_,i)=>[`site${i}.example`,{x:0.5,y:0.5}]));
@@ -245,26 +253,26 @@ test('remote text requires site access, provider consent and endpoint permission
   permissions.add('https://api.mymemory.translated.net/*');assert.equal((await message(payload,site)).ok,true);assert.equal(network.length,1);
   permissions.delete('https://chatgpt.com/*');assert.equal((await message(payload,site)).ok,false);assert.equal(network.length,1);
 });
-test('Microsoft no-key preset still requires text consent and an exact host permission',async()=>{
-  stores.local.settings.basicEngine='microsoft';stores.local.settings.basicFallback=false;
+test('MyMemory requires text consent and an exact host permission',async()=>{
+  stores.local.settings.basicEngine='mymemory';stores.local.settings.basicFallback=false;
   assert.equal((await message({type:'suggest',text:'你好'},site)).ok,false);assert.equal(network.length,0);
-  stores.local.settings.basic.microsoft.consent=true;
+  stores.local.settings.basic.mymemory.consent=true;
   assert.equal((await message({type:'suggest',text:'你好'},site)).ok,false);assert.equal(network.length,0);
-  permissions.add('https://edge.microsoft.com/*');assert.equal((await message({type:'suggest',text:'你好'},site)).ok,true);assert.equal(network.length,1);assert.equal(network[0].opts.headers.Authorization,undefined);
+  permissions.add('https://api.mymemory.translated.net/*');assert.equal((await message({type:'suggest',text:'你好'},site)).ok,true);assert.equal(network.length,1);assert.equal(network[0].opts.headers?.Authorization,undefined);
   assert.ok(!JSON.stringify(stores.session.basicStatus).includes('你好'));
 });
 test('content scripts cannot read keys or state, change settings, test providers, or reset data',async()=>{
   stores.local.keys={llm:'never-expose'};
   const settings=await message({type:'public-settings'},site);assert.equal(settings.ok,true);assert.ok(!JSON.stringify(settings).includes('never-expose'));assert.ok(!JSON.stringify(settings).includes('endpoint'));
   for(const type of ['state','save-settings','test-llm','test-basic','forget-keys','reset-data'])assert.equal((await message({type},site)).ok,false,type);
-  assert.equal(stores.local.keys.llm,'never-expose');
+  assert.equal(stores.session.keys.llm,'never-expose');assert.equal(stores.local.keys,undefined);
   assert.equal((await message({type:'state'},{...ui,tab:{id:1}})).ok,true,'extension options tabs are trusted by their extension URL');
 });
 test('excluded websites cannot transmit, learn vocabulary, or increment local statistics',async()=>{
   stores.local.settings.blocklist=['chatgpt.com'];
   assert.equal((await message({type:'suggest',text:'你好'},site)).ok,false);
   assert.equal((await message({type:'vocabulary',item:{word:'test'}},site)).ok,false);
-  await message({type:'metric',delta:{typed:10,raw:'secret'}},site);assert.equal(stores.local.analytics,undefined);assert.equal(network.length,0);
+  await message({type:'metric',delta:{typed:10,raw:'secret'}},site);assert.equal((await value('analytics')),undefined);assert.equal(network.length,0);
 });
 test('a content script can block/unblock only its own granted hostname, never another host or wildcard',async()=>{
   stores.local.settings.blocklist=['*.other.example'];
@@ -280,7 +288,7 @@ test('a content script can block/unblock only its own granted hostname, never an
 });
 test('whitelist requests and counters are denied until the hostname is explicitly listed',async()=>{
   stores.local.settings.siteMode='whitelist';stores.local.settings.basic.mymemory.consent=true;permissions.add('https://api.mymemory.translated.net/*');
-  assert.equal((await message({type:'suggest',text:'你好'},site)).ok,false);await message({type:'metric',delta:{typed:1}},site);assert.equal(stores.local.analytics,undefined);
+  assert.equal((await message({type:'suggest',text:'你好'},site)).ok,false);await message({type:'metric',delta:{typed:1}},site);assert.equal((await value('analytics')),undefined);
   assert.equal((await message({type:'set-site-blocked',blocked:true},site)).ok,false);
   stores.local.settings.allowlist=['chatgpt.com'];assert.equal((await message({type:'suggest',text:'你好'},site)).ok,true);
   const saved=await message({type:'set-site-mode',mode:'blacklist'});assert.equal(saved.ok,true);assert.deepEqual(stores.local.settings.allowlist,['chatgpt.com']);
@@ -303,24 +311,25 @@ test('new LLM providers require separate consent and host grants; switching drop
     assert.equal(network.at(-1).url,preset.endpoint+'/chat/completions');
     assert.ok(!JSON.stringify(await message({type:'state'})).includes('synthetic-new-key'));
     assert.ok(!JSON.stringify(await message({type:'public-settings'},site)).includes('synthetic-new-key'));
-    assert.equal(stores.local.keys.llm,undefined);assert.equal(stores.session.keys.llm,'synthetic-new-key');
+    assert.equal((await value('keys'))?.llm,undefined);assert.equal(stores.session.keys.llm,'synthetic-new-key');
     s.llm.endpoint='https://other.test/v1';s.llm.consent=false;await message({type:'save-settings',settings:s});assert.equal(stores.session.keys.llm,'');
   }
 });
 
 test('key storage defaults to session, persistence is explicit, endpoints cannot reuse old keys',async()=>{
   const s=mergeSettings();const saved=await message({type:'save-settings',settings:s,keys:{llm:'session-key'}});assert.equal(saved.ok,true);
-  assert.equal(stores.local.keys.llm,undefined);assert.equal(stores.session.keys.llm,'session-key');
-  s.llm.rememberKey=true;await message({type:'save-settings',settings:s});assert.equal(stores.local.keys.llm,'session-key');assert.equal(stores.session.keys.llm,undefined);
-  s.llm.endpoint='https://new.test/v1';await message({type:'save-settings',settings:s});assert.equal(stores.local.keys.llm,'');
+  assert.equal((await value('keys'))?.llm,undefined);assert.equal(stores.session.keys.llm,'session-key');
+  s.llm.rememberKey=true;assert.equal((await message({type:'save-settings',settings:s})).ok,false);await createVault();await message({type:'save-settings',settings:s});assert.equal((await value('keys')).llm,'session-key');assert.equal(stores.session.keys.llm,undefined);
+  s.llm.endpoint='https://new.test/v1';await message({type:'save-settings',settings:s});assert.equal((await value('keys')).llm,'');
 });
 
 test('LLM configurations isolate keys, consent and active routing; tests never activate or leak keys',async()=>{
+  await createVault();
   const a={...mergeSettings().llm,id:'default',name:'Personal',enabled:true,consent:true,provider:'compatible',endpoint:'https://a.test/v1',model:'model-a'};
   const b={...a,id:'work',name:'Work',endpoint:'https://b.test/v1',model:'model-b',rememberKey:true};
   permissions.add('https://a.test/*');permissions.add('https://b.test/*');
   let reply=await message({type:'save-settings',settings:mergeSettings({siteOrigins:['https://chatgpt.com/*'],llmProfiles:[a,b]}),profileKeys:{default:'synthetic-a',work:'synthetic-b'}});assert.equal(reply.ok,true);
-  assert.equal(stores.session.keys.llm,'synthetic-a');assert.equal(stores.local.keys['llm:work'],'synthetic-b');
+  assert.equal(stores.session.keys.llm,'synthetic-a');assert.equal((await value('keys'))['llm:work'],'synthetic-b');
   assert.equal((await message({type:'suggest',text:'This are a test.'},site)).ok,true);assert.equal(JSON.parse(network.at(-1).opts.body).model,'model-a');assert.equal(network.at(-1).opts.headers.Authorization,'Bearer synthetic-a');
   assert.equal((await message({type:'activate-llm-profile',profileId:'work'},site)).ok,false);
   assert.equal((await message({type:'activate-llm-profile',profileId:'work'})).ok,true);
@@ -329,9 +338,9 @@ test('LLM configurations isolate keys, consent and active routing; tests never a
   let state=(await message({type:'state'})).data;assert.equal(state.settings.activeLlmId,'work');assert.deepEqual(state.hasProfileKeys,{default:true,work:true});assert.ok(!JSON.stringify(state).includes('synthetic-a'));assert.ok(!JSON.stringify(state).includes('synthetic-b'));
   const publicState=(await message({type:'public-settings'},site)).data;assert.equal(publicState.llmProfiles,undefined);assert.equal(publicState.activeLlmId,undefined);
   state.settings.llmProfiles[0].endpoint='https://changed.test/v1';state.settings.llmProfiles[0].consent=false;
-  assert.equal((await message({type:'save-settings',settings:state.settings})).ok,true);assert.equal(stores.session.keys.llm,'');assert.equal(stores.local.keys['llm:work'],'synthetic-b');
+  assert.equal((await message({type:'save-settings',settings:state.settings})).ok,true);assert.equal(stores.session.keys.llm,'');assert.equal((await value('keys'))['llm:work'],'synthetic-b');
   state=(await message({type:'state'})).data;state.settings.llmProfiles=state.settings.llmProfiles.filter(p=>p.id!=='work');state.settings.activeLlmId='default';state.settings.llm=llmConfig(state.settings.llmProfiles[0]);
-  assert.equal((await message({type:'save-settings',settings:state.settings})).ok,true);assert.equal(stores.local.keys['llm:work'],undefined);
+  assert.equal((await message({type:'save-settings',settings:state.settings})).ok,true);assert.equal((await value('keys'))['llm:work'],undefined);
 });
 
 test('configuration request caps are independent and invalid inactive endpoints cannot be authorized',async()=>{
@@ -345,9 +354,9 @@ test('configuration request caps are independent and invalid inactive endpoints 
   assert.equal((await message({type:'save-settings',settings:s})).ok,false);
 });
 test('saved vocabulary never retains context without explicit opt-in and analytics discard raw data',async()=>{
-  await message({type:'vocabulary',item:{word:'streamline',meaning:'精简'},context:'private source sentence'},site);assert.equal(stores.local.vocabulary[0].context,undefined);
-  await message({type:'vocabulary',item:{word:'workflow'},context:'synthetic sentence',includeContext:true},site);assert.equal(stores.local.vocabulary[0].context,'synthetic sentence');
-  await message({type:'metric',delta:{typed:12,raw:'never-store-me'}},site);assert.ok(!JSON.stringify(stores.local.analytics).includes('never-store-me'));
+  await message({type:'vocabulary',item:{word:'streamline',meaning:'精简'},context:'private source sentence'},site);assert.equal((await value('vocabulary'))[0].context,undefined);
+  await message({type:'vocabulary',item:{word:'workflow'},context:'synthetic sentence',includeContext:true},site);assert.equal((await value('vocabulary'))[0].context,'synthetic sentence');
+  await message({type:'metric',delta:{typed:12,raw:'never-store-me'}},site);assert.ok(!JSON.stringify((await value('analytics'))).includes('never-store-me'));
 });
 
 test('parallel lanes use only their independently authorized providers and never serialize network fetches',async()=>{

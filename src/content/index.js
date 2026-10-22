@@ -10,7 +10,7 @@ if (!globalThis.__inputCoach) {
   const send=async message=>{const reply=await chrome.runtime.sendMessage(message);if(!reply?.ok)throw new Error(reply?.error || 'Extension reloaded. Refresh this page.');return reply.data;};
   let settings,active=null,sequence=0,timer,applying=false,changingSite=false,refreshingSettings=false,settingsEpoch=0,mode,lastError='',lastErrorAt=0;
   let snapshots=new WeakMap();const composing=new WeakSet(),compositionStart=new WeakMap();
-  let pending={},flushTimer,snoozeTimer;
+  let pending={},flushTimer,snoozeTimer,queuedInput=null;
   const access=()=>settings && settings.siteOrigins.some(p=>p===location.origin+'/*' || p===location.protocol+'//*/*');
   const snoozed=()=>settings?.snoozeUntil>Date.now();
   const allowed=()=>access() && siteAllowed(location.hostname,settings) && !snoozed();
@@ -53,13 +53,13 @@ if (!globalThis.__inputCoach) {
       else tip.status('This editor did not accept the replacement. Use Copy instead.');
     }
   });
-  function invalidate(close=true){sequence++;clearTimeout(timer);tip.discardQueued();if(close)tip.close();else tip.hideProgress();}
+  function invalidate(close=true){sequence++;clearTimeout(timer);queuedInput=null;tip.discardQueued();if(close)tip.close();else tip.hideProgress();}
   function pauseComposition(){sequence++;clearTimeout(timer);tip.close(true);tip.pauseProgress();}
   function count(delta){if(!settings?.analytics || !allowed())return;const day=dayKey();addMetrics(pending[day] ||= emptyMetrics(),delta);clearTimeout(flushTimer);flushTimer=setTimeout(flush,1500);}
   function flush(){const batch=pending;pending={};for(const[day,delta]of Object.entries(batch))send({type:'metric',day,delta}).catch(()=>{});}
   function focus(editor){if(active!==editor){invalidate();active=editor;mode=settings?.mode;}if(settings?.analytics && allowed() && !snapshots.has(editor))snapshots.set(editor,readEditor(editor));}
   async function suggest(manual=false){
-    clearTimeout(timer);
+    clearTimeout(timer);queuedInput=null;
     if(changingSite || !settings?.enabled || !access() || snoozed() || !active?.isConnected || composing.has(active)){if(!composing.has(active))tip.hideProgress();return;}
     if(!allowed()){tip.hideProgress();if(manual && settings.siteMode==='blacklist')showSitePanel();return;}
     const editor=active, source=readEditor(editor);if(!source.trim() || source.length>6000){tip.hideProgress();return;}
@@ -71,7 +71,7 @@ if (!globalThis.__inputCoach) {
     const show=value=>{if(valid())tip.show(editor,{mode:mode || settings.mode,site:currentSite(),...value});};
     // No empty loading card: both lanes start now and publish independently when usable text arrives.
     const pair=translationPair(source,settings.targetLanguage || 'en');
-    const useMT=action.action!=='explain' && pair.source!==pair.target,useLLM=!settings.llmNeedsConnection && (settings.llmEnabled || action.needsLLM);
+    const useMT=action.action!=='explain' && pair.source!==pair.target,useLLM=!settings.llmNeedsUnlock && !settings.llmNeedsConnection && (settings.llmEnabled || action.needsLLM);
     if(useMT || useLLM)tip.queueProgress(editor,{waiting:true,site:currentSite()});
     const results={},errors={},done={mt:!useMT,llm:!useLLM};let displayed=null,counted=false;
     const publish=async()=>{
@@ -104,10 +104,11 @@ if (!globalThis.__inputCoach) {
       if(['auto','builtin'].includes(settings.basicEngine)){
         try{return await builtin.translate(source,pair);}catch(e){if(settings.basicEngine==='builtin' && !settings.basicFallback)throw e;}
       }
+      if(settings.remoteMTReady===false && useLLM)return null;
       if(valid())return send({type:'suggest',lane:'mt',text:source,mode:mode || settings.mode});
     }));
     if(useLLM)jobs.push(run('llm',()=>send({type:'suggest',lane:'llm',text:source,mode:mode || settings.mode})));
-    if(!jobs.length){tip.hideProgress();if(settings.llmNeedsConnection && action.needsLLM)show({error:'Connect the LLM service in Settings before using it.'});return;}
+    if(!jobs.length){tip.hideProgress();if(settings.llmNeedsUnlock && action.needsLLM)show({error:'Unlock the vault in Settings to use saved API keys.'});else if(settings.llmNeedsConnection && action.needsLLM)show({error:'Connect the LLM service in Settings before using it.'});return;}
     await Promise.allSettled(jobs);
   }
   function schedule(text){if(!settings?.autoSuggest || !settings.enabled || !allowed())return;
@@ -116,11 +117,14 @@ if (!globalThis.__inputCoach) {
     if(action.action==='translate' && !settings.llmEnabled && action.language===(settings.targetLanguage==='zh'?'chinese':'english'))return;
     // Incomplete sentences get a little more quiet time; never request every keypress.
     const delay=settings.debounce+(/[.!?。！？\n]\s*$/.test(text)?0:600);
-    timer=setTimeout(()=>suggest(false),delay);
+    queuedInput={editor:active,text};timer=setTimeout(()=>suggest(false),delay);
     tip.queueProgress(active,{action:action.action,site:currentSite()});
   }
   function input(e,settled=false,candidate){
     const editor=candidate || editorFor(e.composedPath()[0]);if(!editor || applying)return;
+    // Keep only trusted committed input while the initial policy lookup is pending.
+    // acceptSettings schedules it only after website and provider policies arrive.
+    if(!settings){if(e.isTrusted && !e.isComposing){focus(editor);queuedInput={editor,text:readEditor(editor)};}return;}
     if(settings && !settings.analytics && (!settings.enabled || !settings.autoSuggest)){invalidate();return;}
     if(composing.has(editor) || e.isComposing){
       if(!allowed()){invalidate();return;}focus(editor);pauseComposition();const composition=compositionStart.get(editor);if(composition && e.isTrusted)composition.trustedInput=true;return;
@@ -152,7 +156,9 @@ if (!globalThis.__inputCoach) {
     snapshots.set(editor,after);if(allowed())schedule(after);
   }
   document.addEventListener('compositionstart',e=>{
-    const editor=editorFor(e.composedPath()[0]);if(!editor || !allowed())return;
+    const editor=editorFor(e.composedPath()[0]);if(!editor)return;
+    if(!settings){invalidate();composing.add(editor);return;}
+    if(!allowed())return;
     const previous=compositionStart.get(editor);if(previous?.ended)finishComposition(editor,previous);
     focus(editor);pauseComposition();composing.add(editor);compositionStart.set(editor,{before:settings.analytics?readEditor(editor):'',trustedStart:e.isTrusted,trustedInput:false});
   },true);
@@ -182,9 +188,12 @@ if (!globalThis.__inputCoach) {
     if(settings && JSON.stringify({...settings,tooltipSize:undefined,historyLimit:undefined,historyGeneration:undefined})===JSON.stringify({...next,tooltipSize:undefined,historyLimit:undefined,historyGeneration:undefined})){settings=next;tip.setSize(next.tooltipSize);return;}
     const visible=tip.host.isConnected,sitePanel=tip.isSitePanel || tip.siteOpen,focused=document.activeElement===tip.host;
     if(settings?.snoozeUntil!==next.snoozeUntil || settings?.analytics!==next.analytics){snapshots=new WeakMap();if(active)snapshots.set(active,readEditor(active));pending={};}
-    invalidate();settings=next;mode=settings.mode;tip.setSize(next.tooltipSize);
+    const queued=queuedInput;invalidate();settings=next;mode=settings.mode;tip.setSize(next.tooltipSize);
     if(!allowed())pending={};
     if(visible && settings.enabled && access() && !snoozed() && (sitePanel || (settings.siteMode==='blacklist' && !allowed())))showSitePanel(focused);
+    // A delayed policy refresh must not swallow input typed while it was pending.
+    // Only a still-queued, unchanged draft can be rescheduled; completed/cancelled work stays invalidated.
+    if(queued && active===queued.editor && active?.isConnected && !composing.has(active) && readEditor(active)===queued.text)schedule(queued.text);
   }
   async function refreshSettings(snapshot){
     if(changingSite)return;

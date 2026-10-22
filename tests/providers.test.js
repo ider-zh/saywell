@@ -1,5 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {createBasicProviders,normalizeBasic} from '../src/providers/basic.js';
+import {createLegacyEdgeProvider} from '../src/providers/web-translation.js';
 import {BasicRouter} from '../src/providers/router.js';
 import {fetchJSON,ProviderError} from '../src/providers/http.js';
 import {parseLLM,processLLM} from '../src/providers/llm.js';
@@ -8,7 +9,7 @@ import {LLM_PROVIDERS} from '../src/core/llm-providers.js';
 const response=(body,status=200,headers={})=>new Response(JSON.stringify(body),{status,headers});
 const config=()=>mergeSettings({basic:{mymemory:{consent:true},libre:{consent:true,endpoint:'https://libre.test'}}});
 test('Microsoft Edge needs no token or credentials and posts the tested string-array contract',async()=>{
-  let request;const provider=createBasicProviders({fetcher:async(url,opts)=>{request={url,opts};return response([{translations:[{text:'Hello, World.',to:'en'}]}]);}}).find(p=>p.id==='microsoft');
+  let request;const provider=createLegacyEdgeProvider(async(url,opts)=>{request={url,opts};return response([{translations:[{text:'Hello, World.',to:'en'}]}]);});
   const result=await provider.translate('你好，世界。',mergeSettings().basic.microsoft);
   assert.equal(result.text,'Hello, World.');assert.deepEqual(JSON.parse(request.opts.body),['你好，世界。']);
   assert.ok(request.url.includes('/translate/translatetext?from=zh-CHS&to=en'));assert.equal(request.opts.headers.Authorization,undefined);assert.equal(request.opts.credentials,'omit');assert.equal(request.opts.redirect,'error');
@@ -16,6 +17,7 @@ test('Microsoft Edge needs no token or credentials and posts the tested string-a
 test('manual primary falls back in configured order; opt-out and missing consent prevent extra sends',async()=>{
   const calls=[];const providers=['microsoft','mymemory','libre'].map(id=>({id,name:id,available:async()=>true,translate:async()=>{calls.push(id);if(id==='mymemory')throw new ProviderError('length','too long');return {text:'Translated.'};}}));
   const s=mergeSettings({basicEngine:'mymemory',basic:{microsoft:{consent:true},mymemory:{consent:true},libre:{consent:true}}});
+  s.basic.microsoft.consent=true; // Isolated router test; the store worker rejects this retired adapter.
   const router=new BasicRouter(providers);assert.equal((await router.translate('中'.repeat(300),s,async()=>true)).providerId,'microsoft');assert.deepEqual(calls,['mymemory','microsoft']);assert.equal(router.health.mymemory,undefined);
   calls.length=0;s.basicFallback=false;await assert.rejects(new BasicRouter(providers).translate('x',s,async()=>true));assert.deepEqual(calls,['mymemory']);
   calls.length=0;s.basicEngine='auto';s.basic.microsoft.consent=false;s.basicOrder=['libre','microsoft','mymemory','azure','google'];assert.equal((await new BasicRouter(providers).translate('x',s,async()=>true)).providerId,'libre');assert.deepEqual(calls,['libre']);

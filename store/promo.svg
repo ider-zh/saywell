@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="440" height="280" viewBox="0 0 440 280">
+<rect width="440" height="280" fill="#214d3f"/>
+<path d="M295 0C181 91 365 126 292 280H440V0Z" fill="#2a5a48"/>
+<path d="M0 239C115 169 288 293 440 177" stroke="#b0bb8a" stroke-width="1.5" fill="none" opacity=".6"/>
+<g fill="#fff3d6"><rect x="286" y="43" width="93" height="74" rx="25"/><path d="M300 101 288 139 337 110Z"/></g>
+<g fill="#eea35a"><rect x="335" y="91" width="65" height="54" rx="20"/><path d="M370 135 398 163 392 131Z"/></g>
+<text x="30" y="151" fill="#fff3d6" font-family="Segoe UI,Arial,sans-serif" font-weight="700" font-size="57" letter-spacing="-2">Saywell</text>
+<text x="33" y="184" fill="#fff3d6" font-family="Segoe UI,Arial,sans-serif" font-size="17">Write clearly. Say it well.</text>
+<text x="33" y="219" fill="#c9d4bb" font-family="Segoe UI,Arial,sans-serif" font-size="13" letter-spacing="1.2">TRANSLATE · POLISH · PRACTICE</text>
+</svg>

@@ -1,6 +1,7 @@
 import {send,$,text,status,toast,el,download,previewNotice,t,initLocale} from './shared.js';
 import {mountSetup} from './setup.js';
-import {mergeSettings,validateSettings,BASIC_KEY_IDS,BASIC_ORDER,DEFAULTS,llmConfig} from '../core/settings.js';
+import {mountVault} from './vault.js';
+import {mergeSettings,validateSettings,BASIC_KEY_IDS,BASIC_ORDER,RETIRED_BASIC_IDS,DEFAULTS,llmConfig} from '../core/settings.js';
 import {originPattern,endpointURL} from '../core/security.js';
 import {builtin} from '../providers/builtin.js';
 import {LLM_PROVIDERS} from '../core/llm-providers.js';
@@ -10,6 +11,8 @@ let state={settings:mergeSettings(),hasKeys:{}},s=state.settings;
 let editingId=s.activeLlmId,pendingProfileKeys={};
 let pendingImport=null,importRevision=0;
 let saveTimer,editRevision=0,saveQueue=Promise.resolve(),savePending=0,loaded=false;
+for(const id of RETIRED_BASIC_IDS){document.querySelector(`#basicEngine option[value="${id}"]`)?.remove();const row=document.querySelector(`[data-test="${id}"]`)?.parentElement;row?.classList.add('hidden');row?.previousElementSibling?.classList.add('hidden');}
+$('.free-engines')?.classList.add('hidden');$('#googleweb-endpoint')?.closest('details')?.classList.add('hidden');
 const edited=()=>s.llmProfiles.find(p=>p.id===editingId);
 await initLocale();
 const topFields=['basicEngine','basicFallback','siteMode','mode','targetLanguage','style','debounce','difficulty','maxWords','dailyGoal','autoSuggest','analytics','enabled'];
@@ -23,6 +26,7 @@ function render(){
   topFields.forEach(k=>putValue(k,s[k]));
   renderProfileForm();
   for(const id of BASIC_KEY_IDS)putValue(id+'-remember',s.basic[id].rememberKey);
+  for(const id of KEY_IDS)$('#'+id+'-remember').disabled=!state.vault?.configured || state.vault?.locked;
   renderKeyHints();renderLLMProvider();
   putValue('azure-region',s.basic.azure.region);for(const id of ['libre','googleweb','bing'])putValue(id+'-endpoint',s.basic[id].endpoint);putValue('allowlist',s.allowlist.join('\n'));putValue('blocklist',s.blocklist.join('\n'));renderConsent();renderSites();renderSitePolicy();renderOrder();renderDiagnostics();
 }
@@ -72,11 +76,11 @@ function renderConsent(){for(const id of [...BASIC_ORDER,'llm']){
   help.classList.toggle('hidden',!edited()?.enabled || Boolean(edited()?.consent));
 }
 function renderOrder(){
-  $('#basic-order').replaceChildren();s.basicOrder.forEach((id,index)=>{
+  $('#basic-order').replaceChildren();const visible=s.basicOrder.filter(id=>!RETIRED_BASIC_IDS.includes(id));visible.forEach((id,index)=>{
     const row=el('li'),name=el('span',`${index+1}. ${t(providerName(id))} · ${t(s.basic[id].consent?'Service enabled':'Service not connected')}`);
-    const up=el('button',t('Move up')),down=el('button',t('Move down'));up.type=down.type='button';up.disabled=index===0;down.disabled=index===s.basicOrder.length-1;
+    const up=el('button',t('Move up')),down=el('button',t('Move down'));up.type=down.type='button';up.disabled=index===0;down.disabled=index===visible.length-1;
     up.setAttribute('aria-label',t('Move {provider} up',{provider:t(providerName(id))}));down.setAttribute('aria-label',t('Move {provider} down',{provider:t(providerName(id))}));
-    const move=offset=>{const order=[...s.basicOrder];[order[index],order[index+offset]]=[order[index+offset],order[index]];s.basicOrder=order;renderOrder();scheduleSave();};
+    const move=offset=>{const order=[...s.basicOrder],from=order.indexOf(id),to=order.indexOf(visible[index+offset]);[order[from],order[to]]=[order[to],order[from]];s.basicOrder=order;renderOrder();scheduleSave();};
     up.addEventListener('click',()=>move(-1));down.addEventListener('click',()=>move(1));row.append(name,up,down);$('#basic-order').append(row);
   });
 }
@@ -181,20 +185,7 @@ document.querySelectorAll('[data-test]').forEach(b=>b.addEventListener('click',t
   try{const result=await send('test-basic',{id:b.dataset.test});status(`${t(result.engine)}: ${result.text}`);}
   finally{const latest=await send('state');state.basicStatus=latest.basicStatus;$('#basic-order').closest('details').open=true;renderDiagnostics();}
 })));
-$('#enable-free').addEventListener('click',task(async()=>{
-  if(pendingImport)throw new Error('Finish or cancel configuration import before saving preferences.');
-  if(!$('#settings-form').reportValidity())throw new Error('Check the highlighted setting.');collect();
-  // The named button and nearby disclosure provide text consent for exactly these four hosts.
-  const origins=['https://translate.googleapis.com/*','https://cn.bing.com/*','https://edge.microsoft.com/*','https://api.mymemory.translated.net/*'];
-  if(!await chrome.permissions.request({origins}))throw new Error('Endpoint permission was not granted.');
-  s.basic.microsoft={...s.basic.microsoft,endpoint:'https://edge.microsoft.com',consent:true};
-  s.basic.mymemory={...s.basic.mymemory,endpoint:'https://api.mymemory.translated.net',consent:true};
-  s.basic.googleweb={...s.basic.googleweb,endpoint:'https://translate.googleapis.com',consent:true};
-  s.basic.bing={...s.basic.bing,endpoint:'https://cn.bing.com',consent:true};
-  for(const id of ['googleweb','bing'])putValue(id+'-endpoint',s.basic[id].endpoint);
-  putValue('basicEngine','auto');putValue('basicFallback',true);await save();
-  status('No-key fallback enabled. Google, Bing, Microsoft Edge and MyMemory may receive your text. No API key or account is needed.');
-}));
+// The former multi-provider quick start is not part of the store candidate.
 $('#test-llm').addEventListener('click',task(async()=>{const profileId=await connectProvider('llm');status('Testing with “This is a connection test.”…');const r=await send('test-llm',{profileId});status('Connected to {engine}. Synthetic request completed.',false,{engine:r.engine});}));
 $('#prepare-local').addEventListener('click',task(async()=>{const target=getValue('targetLanguage'),promise=builtin.prepare({source:target==='zh'?'en':'zh',target});text('#local-state','Preparing the language model…');await promise;text('#local-state','Model ready in this settings document. Website availability is checked separately.');status('Local model prepared.');}));
 $('#forget-keys').addEventListener('click',task(async()=>{await send('forget-keys');pendingProfileKeys={};for(const id of KEY_IDS)putValue(id+'-key','');state.hasKeys={};state.hasProfileKeys={};renderKeyHints();status('All stored keys forgotten.');}));
@@ -252,6 +243,7 @@ $('#confirm-config-import').addEventListener('click',task(async()=>{
 $('#export').addEventListener('click',task(async()=>{const data=await send('state');download('saywell-practice.json',{schemaVersion:1,exportedAt:new Date().toISOString(),analytics:data.analytics || {},vocabulary:(data.vocabulary || []).map(({context,...word})=>word)});status('Exported activity and vocabulary without credentials or contexts.');}));
 $('#reset').addEventListener('click',()=>{$('#confirm-reset').classList.remove('hidden');status('Reset deletes all local activity and vocabulary. Click Confirm reset to continue.');});
 $('#confirm-reset').addEventListener('click',task(async()=>{await send('reset-data');$('#confirm-reset').classList.add('hidden');status('Practice data reset.');}));
+mountVault($('#privacy'),async()=>{clearTimeout(saveTimer);await saveQueue.catch(()=>{});state=await send('state');s=state.settings;pendingProfileKeys={};for(const id of KEY_IDS)putValue(id+'-key','');render();});
 const setupHolder=el('div');$('.page-heading').after(setupHolder);
 const builtinBackupNote=el('p',t('Built-in Saywell Free AI follows this app version and is not restored from backup data. Custom LLM configurations are portable.'),'help');builtinBackupNote.dataset.i18n='Built-in Saywell Free AI follows this app version and is not restored from backup data. Custom LLM configurations are portable.';$('.config-transfer .help').after(builtinBackupNote);
 mountSetup(setupHolder,{beforeComplete:async()=>{clearTimeout(saveTimer);editRevision++;await saveQueue.catch(()=>{});},onComplete:async()=>{state=await send('state');s=state.settings;editingId=s.activeLlmId;render();}});

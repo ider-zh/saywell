@@ -22,7 +22,7 @@ Qwen3 30B A3B uses its native chat template with `max_tokens` and an appended `/
 
 ## Using the extension
 
-New installations enable included free services through the welcome page's permission action. Known built-in Saywell profiles follow current app endpoint/model metadata; an old workers.dev base resolves to the custom hostname with consent cleared. **Connect and test** requests its host permission if needed and renews text consent before sending the fixed synthetic test. Denied permission sends no request. Backups omit built-in values and cannot restore obsolete URLs/models. Other providers and custom endpoints are preserved. No key is required. Thinking is off by default; output is capped at 800 tokens.
+New installations authorize the included Cloudflare AI through the welcome page's single permission action, with [text-processing disclosure](privacy-policy.en.md). Browser-local MT needs no remote consent; optional remote MT services require their own connection. Known built-in Saywell profiles follow current app endpoint/model metadata; an old workers.dev base resolves to the custom hostname with consent cleared. **Connect and test** requests its host permission if needed and renews text consent before sending the fixed synthetic test. Denied permission sends no request. Backups omit built-in values and cannot restore obsolete URLs/models. Other providers and custom endpoints are preserved. No key is required. Thinking is off by default; output is capped at 800 tokens.
 
 ## Custom domain and DNS
 

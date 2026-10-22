@@ -50,7 +50,6 @@ test('all MT adapters send the English-to-Chinese pair rather than hardcoded Chi
   assert.equal(new URL(calls.find(c=>c.url.includes('/get')).url).searchParams.get('langpair'),'en|zh-CN');
   const libre=JSON.parse(calls.find(c=>c.url.endsWith('/translate')).opts.body);assert.equal(libre.source,'en');assert.equal(libre.target,'zh');
   const google=JSON.parse(calls.find(c=>c.url.includes('/language/translate/v2')).opts.body);assert.equal(google.target,'zh');
-  const edge=new URL(calls.find(c=>c.url.includes('translatetext')).url);assert.equal(edge.searchParams.get('from'),'en');assert.equal(edge.searchParams.get('to'),'zh-CHS');
   const azure=new URL(calls.find(c=>c.url.includes('api-version')).url);assert.equal(azure.searchParams.get('from'),'en');assert.equal(azure.searchParams.get('to'),'zh-Hans');
 });
 

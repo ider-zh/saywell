@@ -1,4 +1,4 @@
-import { mergeSettings, publicSettings, validateSettings, BASIC_KEY_IDS, BASIC_ORDER, llmKeyId, llmConfig } from './core/settings.js';
+import { mergeSettings, publicSettings, validateSettings, BASIC_KEY_IDS, BASIC_ORDER, RETIRED_BASIC_IDS, llmKeyId, llmConfig } from './core/settings.js';
 import { siteAllowed, routeAction,translationPair } from './core/language.js';
 import { dayKey, recordMetric } from './core/analytics.js';
 import { endpointURL, originPattern } from './core/security.js';
@@ -11,19 +11,22 @@ import {validateSitePreferences,sitePreferencesFor,resolveSiteSettings} from './
 import {exportConfigBackup,parseConfigBackup,configSummary} from './core/config-backup.js';
 import {SETUP_ORIGINS,enableFreeSetup} from './core/setup.js';
 import {HISTORY_LIMITS,historyLimit,historyResult,mergeHistory,trimHistory} from './core/history.js';
+import {createPrivateStorage} from './core/private-storage.js';
 import {snoozeStatus,snoozeDeadline,changeSnooze} from './core/snooze.js';
 
+const privateLocal=createPrivateStorage(chrome.storage.local,chrome.storage.session);
 let writeQueue=Promise.resolve();
-const basicProviders=createBasicProviders();
+const basicProviders=createBasicProviders().filter(provider=>!RETIRED_BASIC_IDS.includes(provider.id));
 function serial(fn) { const result=writeQueue.then(fn); writeQueue=result.catch(()=>{}); return result; }
 const ready=Promise.all([
   chrome.storage.local.setAccessLevel({accessLevel:'TRUSTED_CONTEXTS'}),
   chrome.storage.session.setAccessLevel({accessLevel:'TRUSTED_CONTEXTS'})
-]);
-const settings=async()=>mergeSettings((await chrome.storage.local.get('settings')).settings);
+]).then(()=>privateLocal.initialize());
+const settings=async()=>mergeSettings((await privateLocal.get('settings')).settings);
 const granted=endpoint=>chrome.permissions.contains({origins:[originPattern(endpoint)]});
 async function basicAccess(endpoint,id,sender){
   const latest=await settings();
+  if(latest.basic[id]?.rememberKey && (await privateLocal.status()).locked)return false;
   return Boolean(latest.basic[id]?.consent && latest.basic[id].endpoint===endpoint && (!sender || latest.enabled && await forSite(sender,latest)) && await granted(endpoint));
 }
 const trusted=sender=>Boolean(sender.url?.startsWith(chrome.runtime.getURL('')));
@@ -32,21 +35,21 @@ async function siteAccess(sender,s) {
   const u=new URL(sender.url);
   return ['https:','http:'].includes(u.protocol) && s.siteOrigins.some(p=>p === `${u.origin}/*` || p === `${u.protocol}//*/*`) && await chrome.permissions.contains({origins:[`${u.origin}/*`]});
 }
-const forSite=async(sender,s)=>await siteAccess(sender,s) && siteAllowed(new URL(sender.url).hostname,s) && !snoozeStatus((await chrome.storage.local.get('snoozes')).snoozes,new URL(sender.url).hostname).until;
+const forSite=async(sender,s)=>await siteAccess(sender,s) && siteAllowed(new URL(sender.url).hostname,s) && !snoozeStatus((await privateLocal.get('snoozes')).snoozes,new URL(sender.url).hostname).until;
 async function preferencesFor(sender,s){
   if(!await siteAccess(sender,s))return {};
-  return sitePreferencesFor((await chrome.storage.local.get('sitePreferences')).sitePreferences,new URL(sender.url).hostname.toLowerCase());
+  return sitePreferencesFor((await privateLocal.get('sitePreferences')).sitePreferences,new URL(sender.url).hostname.toLowerCase());
 }
 async function contentSettings(s,sender){
-  const {uiLanguage,tooltipSizes,historyPreferences,historyGeneration,snoozes}=await chrome.storage.local.get(['uiLanguage','tooltipSizes','historyPreferences','historyGeneration','snoozes']),preferences=sender?await preferencesFor(sender,s):{};
-  const size=sender && tooltipSizes?.[new URL(sender.url).hostname.toLowerCase()];
-  return {...publicSettings(resolveSiteSettings(s,preferences)),sitePreferences:preferences,
+  const {uiLanguage,tooltipSizes,historyPreferences,historyGeneration,snoozes}=await privateLocal.get(['uiLanguage','tooltipSizes','historyPreferences','historyGeneration','snoozes']),preferences=sender?await preferencesFor(sender,s):{};
+  const size=sender && tooltipSizes?.[new URL(sender.url).hostname.toLowerCase()],vault=await privateLocal.status(),effective=resolveSiteSettings(s,preferences);
+  return {...publicSettings(effective),llmNeedsUnlock:Boolean(vault.locked && effective.llm.rememberKey && effective.llm.provider!=='saywell'),sitePreferences:preferences,
     globalDefaults:{mode:s.mode,targetLanguage:s.targetLanguage,basicEngine:s.basicEngine,activeLlmId:s.activeLlmId},
     llmChoices:s.llmProfiles.map(({id,name,provider,model,enabled,consent})=>({id,name,provider,model,enabled,consent})),
-    tooltipSize:validTooltipSize(size)?size:'small',uiLanguage:['en','zh-CN'].includes(uiLanguage)?uiLanguage:'auto',historyLimit:historyLimit(historyPreferences?.limit),historyGeneration:historyGeneration || 0,snoozeUntil:snoozeStatus(snoozes,sender?.url?new URL(sender.url).hostname:null).until};
+    tooltipSize:validTooltipSize(size)?size:'small',uiLanguage:['en','zh-CN'].includes(uiLanguage)?uiLanguage:'auto',historyLimit:vault.locked?0:historyLimit(historyPreferences?.limit),historyGeneration:historyGeneration || 0,snoozeUntil:snoozeStatus(snoozes,sender?.url?new URL(sender.url).hostname:null).until};
 }
 async function withKeys(s) {
-  const local=await chrome.storage.local.get('keys'), session=await chrome.storage.session.get('keys');
+  const local=await privateLocal.get('keys'), session=await chrome.storage.session.get('keys');
   const keys={...local.keys,...session.keys};
   return {...s,basic:Object.fromEntries(Object.entries(s.basic).map(([id,c])=>[id,{...c,key:keys[id] || ''}])),llm:{...s.llm,key:keys[llmKeyId(s.activeLlmId)] || ''},
     llmProfileKeys:Object.fromEntries(s.llmProfiles.map(p=>[p.id,keys[llmKeyId(p.id)] || '']))};
@@ -61,7 +64,7 @@ async function registerSites() {
 }
 
 async function setupStatus(){
-  const {setup,settings:raw}=await chrome.storage.local.get(['setup','settings']);
+  const {setup,settings:raw}=await privateLocal.get(['setup','settings']);
   const s=mergeSettings(raw),required=Boolean(setup?.required || !raw);
   const missing=[];for(const origin of s.siteOrigins)if(!await chrome.permissions.contains({origins:[origin]}))missing.push(origin);
   for(const config of [...s.llmProfiles,...Object.values(s.basic)])if(config.consent && config.endpoint && !await granted(config.endpoint))missing.push(originPattern(config.endpoint));
@@ -71,7 +74,7 @@ let badgeQueue=Promise.resolve();
 function updateSetupBadge(){
   badgeQueue=badgeQueue.catch(()=>{}).then(async()=>{
     const {needed}=await setupStatus();
-    const {uiLanguage}=await chrome.storage.local.get('uiLanguage');
+    const {uiLanguage}=await privateLocal.get('uiLanguage');
     const zh=uiLanguage==='zh-CN' || (!uiLanguage || uiLanguage==='auto') && chrome.i18n?.getUILanguage().startsWith('zh');
     await chrome.action.setBadgeText({text:needed?'!':''});
     await chrome.action.setBadgeBackgroundColor({color:'#aa4d25'});
@@ -88,21 +91,24 @@ async function activateOpenTabs(){
 async function metric(sender,delta,day) {
   return serial(async()=>{
     const s=await settings();
-    if (!s.analytics || !await forSite(sender,s)) return;
+    if (!s.analytics || !await forSite(sender,s) || (await privateLocal.status()).locked) return;
     const today=dayKey();
     // Delayed flushes may refer to yesterday, but cannot insert arbitrary date keys.
     const yesterday=dayKey(new Date(Date.now()-86400000));
     const date=[today,yesterday].includes(day) ? day : today;
-    const analytics=(await chrome.storage.local.get('analytics')).analytics || {};
+    const analytics=(await privateLocal.get('analytics')).analytics || {};
     recordMetric(analytics,date,new URL(sender.url).hostname,delta);
-    await chrome.storage.local.set({analytics});
+    await privateLocal.set({analytics});
   });
 }
 
 async function handle(message,sender) {
   await ready;
   if (!message || typeof message.type !== 'string') throw new Error('Invalid message.');
-  const isUI=trusted(sender), s=await settings();
+  const isUI=trusted(sender);
+  // Explicit recovery must remain available even if legacy/corrupt storage cannot be read.
+  if(message.type==='vault-erase' && isUI){if(message.confirm!==true)throw new Error('Confirm deletion of the encrypted vault.');return serial(async()=>{await privateLocal.erase();const generation=(await privateLocal.get('historyGeneration')).historyGeneration || 0;await privateLocal.set({historyGeneration:generation+1});return privateLocal.status();});}
+  const s=await settings();
   if (message.type === 'public-settings') return contentSettings(s,sender);
   if(['set-snooze','clear-snooze','get-snooze'].includes(message.type))return serial(async()=>{
     if(!['site','all'].includes(message.scope) && message.type!=='get-snooze')throw new Error('Invalid pause scope.');
@@ -110,22 +116,22 @@ async function handle(message,sender) {
     let target=sender;
     if(isUI){const tab=Number.isInteger(message.tabId)?await chrome.tabs.get(message.tabId):null;target={tab,url:tab?.url};}
     const host=target.url && /^https?:\/\//.test(target.url)?new URL(target.url).hostname:null;
-    const stored=(await chrome.storage.local.get('snoozes')).snoozes;
+    const stored=(await privateLocal.get('snoozes')).snoozes;
     if(message.type==='get-snooze')return {...snoozeStatus(stored,host),host};
     if((!isUI || message.scope==='site') && !await siteAccess(target,await settings()))throw new Error('Grant website access first.');
     const until=message.type==='set-snooze'?snoozeDeadline(message.duration):0;
-    const next=changeSnooze(stored,message.scope,host,until);await chrome.storage.local.set({snoozes:next});
+    const next=changeSnooze(stored,message.scope,host,until);await privateLocal.set({snoozes:next});
     return isUI?{...snoozeStatus(next,host),host}:contentSettings(await settings(),sender);
   });
   if(message.type==='record-history')return serial(async()=>{
     const latest=await settings();if(!latest.enabled || !await forSite(sender,latest))throw new Error('Website is excluded.');
-    const data=await chrome.storage.local.get(['translationHistory','historyPreferences','historyGeneration']),limit=historyLimit(data.historyPreferences?.limit);
-    if(!limit || message.generation!==(data.historyGeneration || 0))return false;
+    const data=await privateLocal.get(['translationHistory','historyPreferences','historyGeneration']),limit=historyLimit(data.historyPreferences?.limit);
+    if((await privateLocal.status()).locked || !limit || message.generation!==(data.historyGeneration || 0))return false;
     if(typeof message.requestId!=='string' || !/^[a-zA-Z0-9-]{1,64}$/.test(message.requestId) || typeof message.source!=='string' || !message.source.trim() || message.source.length>6000 || !['en','zh'].includes(message.targetLanguage) || !['translate','polish','explain'].includes(message.action) || !['mt','llm'].includes(message.lane))throw new Error('Invalid history entry.');
     const id=`${sender.tab.id}-${sender.frameId || 0}-${message.requestId}`;
     const entry={id,createdAt:new Date().toISOString(),hostname:new URL(sender.url).hostname,source:message.source,targetLanguage:message.targetLanguage,action:message.action};
     const records=mergeHistory(data.translationHistory || [],entry,message.lane,historyResult(message.result),limit);
-    try{await chrome.storage.local.set({translationHistory:records});await chrome.storage.session.remove('historyWriteError');}
+    try{await privateLocal.set({translationHistory:records});await chrome.storage.session.remove('historyWriteError');}
     catch{await chrome.storage.session.set({historyWriteError:true});return false;}
     return true;
   });
@@ -134,27 +140,27 @@ async function handle(message,sender) {
     if(!await siteAccess(sender,latest))throw new Error('Grant website access first.');
     const host=new URL(sender.url).hostname.toLowerCase();
     const preferences=message.preferences===null?{}:validateSitePreferences(message.preferences,latest.llmProfiles);
-    const stored=(await chrome.storage.local.get('sitePreferences')).sitePreferences || {};
+    const stored=(await privateLocal.get('sitePreferences')).sitePreferences || {};
     const entries=Object.entries(stored).filter(([key])=>key!==host);
     if(Object.keys(preferences).length){
       if(entries.length>=300)throw new Error('Website settings limit reached. Reset an unused website first.');
       entries.push([host,preferences]);
     }
-    await chrome.storage.local.set({sitePreferences:Object.fromEntries(entries)});
+    await privateLocal.set({sitePreferences:Object.fromEntries(entries)});
     return contentSettings(latest,sender);
   });
   if(message.type==='set-tooltip-size')return serial(async()=>{
     if(!await siteAccess(sender,await settings()))throw new Error('Grant website access first.');
     if(!validTooltipSize(message.size))throw new Error('Invalid tooltip size.');
-    const host=new URL(sender.url).hostname.toLowerCase(),saved=(await chrome.storage.local.get('tooltipSizes')).tooltipSizes || {};
+    const host=new URL(sender.url).hostname.toLowerCase(),saved=(await privateLocal.get('tooltipSizes')).tooltipSizes || {};
     const entries=Object.entries(saved).filter(([key,value])=>key!==host && validTooltipSize(value));entries.push([host,message.size]);
-    await chrome.storage.local.set({tooltipSizes:Object.fromEntries(entries.slice(-200))});return message.size;
+    await privateLocal.set({tooltipSizes:Object.fromEntries(entries.slice(-200))});return message.size;
   });
   if(['get-tooltip-position','set-tooltip-position'].includes(message.type))return serial(async()=>{
     if(!await siteAccess(sender,await settings()))throw new Error('Grant website access first.');
     // The browser-provided sender determines the exact hostname, including for blocked-site panels.
     const host=new URL(sender.url).hostname.toLowerCase();
-    const saved=(await chrome.storage.local.get('tooltipPositions')).tooltipPositions || {};
+    const saved=(await privateLocal.get('tooltipPositions')).tooltipPositions || {};
     if(message.type==='get-tooltip-position'){
       const value=Object.hasOwn(saved,host)?saved[host]:null;
       return validTooltipPosition(value)?{x:value.x,y:value.y}:null;
@@ -163,7 +169,7 @@ async function handle(message,sender) {
     if(value!==null && !validTooltipPosition(value))throw new Error('Invalid tooltip position.');
     const entries=Object.entries(saved).filter(([key,position])=>key!==host && validTooltipPosition(position)).map(([key,position])=>[key,{x:position.x,y:position.y}]);
     if(value!==null)entries.push([host,{x:value.x,y:value.y}]);
-    await chrome.storage.local.set({tooltipPositions:Object.fromEntries(entries.slice(-200))});
+    await privateLocal.set({tooltipPositions:Object.fromEntries(entries.slice(-200))});
     return true;
   });
   if(message.type==='set-site-blocked')return serial(async()=>{
@@ -178,11 +184,11 @@ async function handle(message,sender) {
     // Content scripts can only change their own exact hostname, never an arbitrary or wildcard rule.
     const host=new URL(target.url).hostname.toLowerCase();
     const blocklist=message.blocked?[...new Set([...latest.blocklist,host])]:latest.blocklist.filter(rule=>rule.toLowerCase()!==host);
-    const next=validateSettings({...latest,blocklist});await chrome.storage.local.set({settings:next});return contentSettings(next,target);
+    const next=validateSettings({...latest,blocklist});await privateLocal.set({settings:next});return contentSettings(next,target);
   });
   if (message.type === 'open-settings') { await chrome.runtime.openOptionsPage(); return true; }
   if (message.type === 'engine-used') {
-    if (await forSite(sender,s) && typeof message.engine === 'string') await chrome.storage.local.set({lastEngine:message.engine.slice(0,60)});
+    if (await forSite(sender,s) && typeof message.engine === 'string') await privateLocal.set({lastEngine:message.engine.slice(0,60)});
     return true;
   }
   if (message.type === 'metric') { await metric(sender,message.delta || {},message.day); return true; }
@@ -207,7 +213,7 @@ async function handle(message,sender) {
     try {
       const result=await router.translate(text,config,(endpoint,id)=>basicAccess(endpoint,id,sender));
       await chrome.storage.session.set({basicStatus:{at:Date.now(),engine:result.engine,attempts:result.attempts}});
-      await chrome.storage.local.set({lastEngine:result.engine});return {...result,action:message.lane==='mt'?'translate':action.action};
+      await privateLocal.set({lastEngine:result.engine});return {...result,action:message.lane==='mt'?'translate':action.action};
     }catch(e){await chrome.storage.session.set({basicStatus:{at:Date.now(),attempts:e.attempts || [],error:e.message}});throw e;}
     finally { await chrome.storage.session.set({health:router.health}); }
   }
@@ -216,46 +222,57 @@ async function handle(message,sender) {
     const {word,meaning,explanation,pronunciation,example}=message.item || {};
     if (typeof word !== 'string' || !word.trim() || word.length>80) throw new Error('Invalid vocabulary item.');
     return serial(async()=>{
-      const vocabulary=(await chrome.storage.local.get('vocabulary')).vocabulary || [];
+      const vocabulary=(await privateLocal.get('vocabulary')).vocabulary || [];
       const item={word:word.trim(),meaning:String(meaning || '').slice(0,160),explanation:String(explanation || '').slice(0,240),pronunciation:String(pronunciation || '').slice(0,100),example:String(example || '').slice(0,240),status:message.known ? 'known' : 'saved',date:dayKey()};
       if (message.includeContext === true && typeof message.context === 'string') item.context=message.context.slice(0,2000);
       const filtered=vocabulary.filter(v=>v.word.toLowerCase()!==word.trim().toLowerCase());
-      await chrome.storage.local.set({vocabulary:[item,...filtered].slice(0,2000)}); return true;
+      await privateLocal.set({vocabulary:[item,...filtered].slice(0,2000)}); return true;
     });
   }
   if (!isUI) throw new Error('This action is only available from extension pages.');
+  if(message.type==='vault-status')return privateLocal.status();
+  if(['vault-create','vault-unlock','vault-lock','vault-erase'].includes(message.type))return serial(async()=>{
+    if(message.type==='vault-erase' && message.confirm!==true)throw new Error('Confirm deletion of the encrypted vault.');
+    if(message.type==='vault-create')await privateLocal.create(message.password);
+    if(message.type==='vault-unlock')await privateLocal.unlock(message.password);
+    if(message.type==='vault-lock')await privateLocal.lock();
+    if(message.type==='vault-erase')await privateLocal.erase();
+    const generation=(await privateLocal.get('historyGeneration')).historyGeneration || 0;await privateLocal.set({historyGeneration:generation+1});
+    return privateLocal.status();
+  });
   if(message.type==='get-history')return serial(async()=>{
-    const data=await chrome.storage.local.get(['translationHistory','historyPreferences']);
-    return {records:data.translationHistory || [],limit:historyLimit(data.historyPreferences?.limit),writeError:Boolean((await chrome.storage.session.get('historyWriteError')).historyWriteError)};
+    const data=await privateLocal.get(['translationHistory','historyPreferences']);
+    return {vault:await privateLocal.status(),records:data.translationHistory || [],limit:historyLimit(data.historyPreferences?.limit),writeError:Boolean((await chrome.storage.session.get('historyWriteError')).historyWriteError)};
   });
   if(['clear-history','remove-history','set-history-limit'].includes(message.type))return serial(async()=>{
-    const data=await chrome.storage.local.get(['translationHistory','historyPreferences','historyGeneration']);let records=data.translationHistory || [],limit=historyLimit(data.historyPreferences?.limit);
+    const data=await privateLocal.get(['translationHistory','historyPreferences','historyGeneration']);let records=data.translationHistory || [],limit=historyLimit(data.historyPreferences?.limit);
     if(message.type==='set-history-limit'){
       if(!HISTORY_LIMITS.includes(message.limit))throw new Error('Invalid history limit.');limit=message.limit;if(limit)records=trimHistory(records,limit);
     }else if(message.type==='remove-history'){
       if(typeof message.id!=='string' || message.id.length>120)throw new Error('Invalid history entry.');records=records.filter(row=>row.id!==message.id);
     }else records=[];
-    await chrome.storage.local.set({translationHistory:records,historyPreferences:{limit},historyGeneration:(data.historyGeneration || 0)+1});await chrome.storage.session.remove('historyWriteError');return true;
+    await privateLocal.set({translationHistory:records,historyPreferences:{limit},historyGeneration:(data.historyGeneration || 0)+1});await chrome.storage.session.remove('historyWriteError');return true;
   });
   if(message.type==='setup-status')return setupStatus();
   if(message.type==='complete-setup')return serial(async()=>{
     const current=await setupStatus();
     if(current.initial?!await chrome.permissions.contains({origins:SETUP_ORIGINS}):current.missing.length>0)throw new Error('Website permission was not granted.');
     // A retry after revoked permissions restores access without resetting user choices.
-    if(current.initial)await chrome.storage.local.set({settings:validateSettings(enableFreeSetup(await settings())),setup:{required:false}});
+    if(current.initial)await privateLocal.set({settings:validateSettings(enableFreeSetup(await settings())),setup:{required:false}});
     await registerSites();await updateSetupBadge();await activateOpenTabs();return true;
   });
-  if(message.type==='export-config')return serial(async()=>exportConfigBackup(await settings(),await chrome.storage.local.get(['uiLanguage','sitePreferences','tooltipPositions','tooltipSizes'])));
+  if(message.type==='export-config')return serial(async()=>exportConfigBackup(await settings(),await privateLocal.get(['uiLanguage','sitePreferences','tooltipPositions','tooltipSizes'])));
   if(message.type==='inspect-config'){
     const data=parseConfigBackup(message.text),summary=configSummary(data);
     summary.missingOrigins=(await Promise.all(summary.origins.map(async origin=>await chrome.permissions.contains({origins:[origin]})?null:origin))).filter(Boolean);
     return summary;
   }
   if(message.type==='import-config')return serial(async()=>{
+    if((await privateLocal.status()).locked)throw new Error('Unlock the vault before changing private data.');
     const data=parseConfigBackup(message.text),previous=await settings(),next=data.settings;
     const requested=[...next.siteOrigins];
     next.siteOrigins=(await Promise.all(requested.map(async origin=>await chrome.permissions.contains({origins:[origin]})?origin:null))).filter(Boolean);
-    const local=(await chrome.storage.local.get('keys')).keys || {},session=(await chrome.storage.session.get('keys')).keys || {};
+    const local=(await privateLocal.get('keys')).keys || {},session=(await chrome.storage.session.get('keys')).keys || {};
     const nextLocal={...local},nextSession={...session};
     // Preserve only same-identity credentials already on this device, with their existing storage choice.
     for(const id of new Set([...Object.keys(local),...Object.keys(session)]))if(BASIC_KEY_IDS.includes(id) || id==='llm' || id.startsWith('llm:')){delete nextLocal[id];delete nextSession[id];}
@@ -270,29 +287,30 @@ async function handle(message,sender) {
     }
     for(const profile of next.llmProfiles){const old=previous.llmProfiles.find(p=>p.id===profile.id);retain(llmKeyId(profile.id),profile,old,Boolean(old && old.provider===profile.provider && old.endpoint===profile.endpoint));}
     next.llm=llmConfig(next.llmProfiles.find(p=>p.id===next.activeLlmId));
-    await chrome.storage.local.set({settings:next,keys:nextLocal,uiLanguage:data.uiLanguage,sitePreferences:data.sitePreferences,tooltipPositions:data.tooltipPositions,tooltipSizes:data.tooltipSizes});
+    await privateLocal.set({settings:next,keys:nextLocal,uiLanguage:data.uiLanguage,sitePreferences:data.sitePreferences,tooltipPositions:data.tooltipPositions,tooltipSizes:data.tooltipSizes});
     await chrome.storage.session.set({keys:nextSession,health:{},llmHealth:{}});await chrome.storage.session.remove('basicStatus');
     await registerSites();return {skippedOrigins:requested.filter(origin=>!next.siteOrigins.includes(origin)).length};
   });
   if (message.type === 'state') {
-    const data=await chrome.storage.local.get(['analytics','vocabulary','lastEngine','usage']);
+    const data=await privateLocal.get(['analytics','vocabulary','lastEngine','usage']);
     const keys=await withKeys(s);
-    return {...data,...await chrome.storage.session.get('basicStatus'),settings:s,hasProfileKeys:Object.fromEntries(Object.entries(keys.llmProfileKeys).map(([id,key])=>[id,Boolean(key)])),hasKeys:{llm:Boolean(keys.llm.key),...Object.fromEntries(BASIC_KEY_IDS.map(id=>[id,Boolean(keys.basic[id].key)]))}};
+    return {...data,...await chrome.storage.session.get('basicStatus'),vault:await privateLocal.status(),settings:s,hasProfileKeys:Object.fromEntries(Object.entries(keys.llmProfileKeys).map(([id,key])=>[id,Boolean(key)])),hasKeys:{llm:Boolean(keys.llm.key),...Object.fromEntries(BASIC_KEY_IDS.map(id=>[id,Boolean(keys.basic[id].key)]))}};
   }
   if(message.type==='set-site-mode')return serial(async()=>{
     if(!['blacklist','whitelist'].includes(message.mode))throw new Error('Invalid siteMode.');
-    await chrome.storage.local.set({settings:{...await settings(),siteMode:message.mode}});return true;
+    await privateLocal.set({settings:{...await settings(),siteMode:message.mode}});return true;
   });
   if(message.type==='set-target-language')return serial(async()=>{
     if(!['en','zh'].includes(message.targetLanguage))throw new Error('Invalid target language.');
-    await chrome.storage.local.set({settings:{...await settings(),targetLanguage:message.targetLanguage}});return true;
+    await privateLocal.set({settings:{...await settings(),targetLanguage:message.targetLanguage}});return true;
   });
   if(message.type==='activate-llm-profile')return serial(async()=>{
     const latest=await settings(),profile=latest.llmProfiles.find(p=>p.id===message.profileId);
     if(!profile)throw new Error('Invalid LLM configuration.');
-    await chrome.storage.local.set({settings:{...latest,activeLlmId:profile.id,llm:llmConfig(profile)}});return true;
+    await privateLocal.set({settings:{...latest,activeLlmId:profile.id,llm:llmConfig(profile)}});return true;
   });
   if (message.type === 'save-settings') return serial(async()=>{
+    if((await privateLocal.status()).locked)throw new Error('Unlock the vault before changing private data.');
     const previous=await settings(); const next=validateSettings(mergeSettings(message.settings));
     for (const c of [...next.llmProfiles,...Object.values(next.basic)]) if (c.endpoint) endpointURL(c.endpoint);
     // UI is required to grant a new origin and opt in again before saving changed endpoints.
@@ -300,7 +318,7 @@ async function handle(message,sender) {
     for (const p of next.siteOrigins) {
       if (!/^https?:\/\/[^/]+\/\*$/.test(p) || !await chrome.permissions.contains({origins:[p]})) throw new Error('Grant website access first.');
     }
-    const local=(await chrome.storage.local.get('keys')).keys || {}, session=(await chrome.storage.session.get('keys')).keys || {};
+    const local=(await privateLocal.get('keys')).keys || {}, session=(await chrome.storage.session.get('keys')).keys || {};
     for (const id of BASIC_KEY_IDS) {
       const cfg=next.basic[id];
       const prev=previous.basic[id];
@@ -317,10 +335,10 @@ async function handle(message,sender) {
       const key=typeof supplied==='string'?supplied.slice(0,4096):same?session[id] || local[id] || '':'';
       delete local[id];delete session[id];(cfg.rememberKey?local:session)[id]=key;
     }
-    await chrome.storage.local.set({settings:next,keys:local}); await chrome.storage.session.set({keys:session,health:{},llmHealth:{}});
+    await privateLocal.set({settings:next,keys:local}); await chrome.storage.session.set({keys:session,health:{},llmHealth:{}});
     await registerSites(); return true;
   });
-  if (message.type === 'toggle') { await serial(async()=>chrome.storage.local.set({settings:{...await settings(),enabled:message.enabled === true}})); return true; }
+  if (message.type === 'toggle') { await serial(async()=>privateLocal.set({settings:{...await settings(),enabled:message.enabled === true}})); return true; }
   if (message.type === 'sync-sites') { await registerSites(); return true; }
   if (message.type === 'test-llm') {
     // Saved configuration only: the displayed test sentence is the sole content sent.
@@ -331,6 +349,7 @@ async function handle(message,sender) {
     return {engine:result.engine,ok:true};
   }
   if (message.type === 'test-basic') {
+    if(RETIRED_BASIC_IDS.includes(message.id))throw new Error('This experimental provider is unavailable in the store build.');
     const id=message.id;
     if (!['auto',...BASIC_ORDER].includes(id)) throw new Error('Choose an external basic provider.');
     await chrome.storage.session.set({health:{}});
@@ -341,9 +360,9 @@ async function handle(message,sender) {
     }catch(e){await chrome.storage.session.set({basicStatus:{at:Date.now(),attempts:e.attempts || [],error:e.message}});throw e;}
     finally{await chrome.storage.session.set({health:router.health});}
   }
-  if (message.type === 'forget-keys') { await chrome.storage.local.remove('keys'); await chrome.storage.session.remove('keys'); return true; }
-  if (message.type === 'reset-data') { await serial(()=>chrome.storage.local.remove(['analytics','vocabulary','usage','lastEngine'])); return true; }
-  if (message.type === 'remove-word') { await serial(async()=>{const v=(await chrome.storage.local.get('vocabulary')).vocabulary || [];await chrome.storage.local.set({vocabulary:v.filter(x=>x.word!==message.word)});}); return true; }
+  if (message.type === 'forget-keys') return serial(async()=>{await privateLocal.remove('keys');await chrome.storage.session.remove('keys');return true;});
+  if (message.type === 'reset-data') { await serial(()=>privateLocal.remove(['analytics','vocabulary','usage','lastEngine'])); return true; }
+  if (message.type === 'remove-word') { await serial(async()=>{const v=(await privateLocal.get('vocabulary')).vocabulary || [];await privateLocal.set({vocabulary:v.filter(x=>x.word!==message.word)});}); return true; }
   throw new Error('Unknown action.');
 }
 
@@ -352,18 +371,19 @@ async function runLLM(text,s,request,sender) {
   const healthId=s.activeLlmId,h=((await chrome.storage.session.get('llmHealth')).llmHealth || {})[healthId] || {};
   if (h.blocked || h.until>Date.now()) throw new Error(h.message || 'LLM unavailable or cooling down. Check configuration and use Connect and test in Settings.');
   await serial(async()=>{
-    const usage=(await chrome.storage.local.get('usage')).usage || {};
+    const usage=(await privateLocal.get('usage')).usage || {};
     const day=dayKey(),sameDay=usage.day===day,profiles=sameDay?usage.profiles || {}:{};
     const count=profiles[healthId] ?? (sameDay && healthId==='default' && !usage.profiles?usage.requests || 0:0);
     if (s.llm.dailyRequests && count>=s.llm.dailyRequests) throw new Error('Your local daily LLM request limit is reached.');
-    await chrome.storage.local.set({usage:{day,requests:(sameDay?usage.requests || 0:0)+1,profiles:{...profiles,[healthId]:count+1}}});
+    await privateLocal.set({usage:{day,requests:(sameDay?usage.requests || 0:0)+1,profiles:{...profiles,[healthId]:count+1}}});
   });
-  const vocabulary=(await chrome.storage.local.get('vocabulary')).vocabulary || [];
+  const vocabulary=(await privateLocal.get('vocabulary')).vocabulary || [];
+  if(s.llm.rememberKey && (await privateLocal.status()).locked)throw new Error('Unlock the vault in Settings to use saved API keys.');
   if(sender){const latest=await settings();if(!latest.enabled || !await forSite(sender,latest))throw new Error('Suggestions are paused or this website is excluded.');}
   try {
     const result=await processLLM(text,s.llm,{...request,known:vocabulary.filter(v=>v.status==='known').map(v=>v.word)});
     await updateLLMHealth(healthId,{failures:0});
-    await chrome.storage.local.set({lastEngine:result.engine});
+    await privateLocal.set({lastEngine:result.engine});
     return {...result,action:request.action};
   } catch(e) {
     const failures=(h.failures || 0)+1;
@@ -382,10 +402,12 @@ chrome.runtime.onMessage.addListener((message,sender,reply)=>{
 });
 chrome.runtime.onInstalled.addListener(details=>{
   return serial(async()=>{
-    const {settings:raw}=await chrome.storage.local.get('settings');
-    if(!raw)await chrome.storage.local.set({settings:mergeSettings(),setup:{required:true}});
+    await ready;
+    const {settings:raw}=await privateLocal.get('settings');
+    if(!raw)await privateLocal.set({settings:mergeSettings(),setup:{required:true}});
     await registerSites();await updateSetupBadge();
     if(details.reason==='install')await chrome.tabs.create({url:chrome.runtime.getURL('welcome.html')});
+    else if(details.reason==='update'){const vault=await privateLocal.status();if(vault.migrated && vault.sessionOnly)await chrome.tabs.create({url:chrome.runtime.getURL('settings.html#local-vault')});}
   }).catch(()=>{});
 });
 chrome.runtime.onStartup.addListener(()=>{ registerSites().then(updateSetupBadge).catch(()=>{}); });

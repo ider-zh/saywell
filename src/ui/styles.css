@@ -51,3 +51,7 @@ html[lang="zh-CN"] h1{font-size:26px;letter-spacing:0;line-height:1.35}html[lang
 @media(max-width:600px){.sidebar nav{min-width:0}.sidebar nav a{flex:1 1 0;min-width:0;overflow:hidden}.sidebar .nav-icon{display:none}.sidebar .nav-label{min-width:0;overflow:hidden;text-overflow:ellipsis}}
 .history-entry{overflow-wrap:anywhere}.history-meta>span{max-width:100%}
 .snooze-status{background:#f0f3e6;border:1px solid #d9e2cb;border-radius:6px;padding:9px;margin:6px 0;font-size:11px}.snooze-status .actions{margin-top:6px;gap:6px}.snooze-status button{font-size:10px;padding:3px 7px;min-height:24px}
+
+.local-vault{border:1px solid #cad6c6;border-radius:8px;padding:12px;margin-bottom:18px;background:#f5f7ef}.local-vault .field{margin:10px 0}.local-vault .actions{flex-wrap:wrap}.privacy-footer{text-align:center;font-size:11px;padding:12px;color:#54735d}.privacy-footer a{color:inherit}.privacy-document{margin:0;background:#fffef9;color:#193e36}.privacy-document main{max-width:820px;margin:40px auto;padding:0 24px 56px;line-height:1.75}.privacy-document nav{display:flex;justify-content:space-between}.privacy-document h1{font-size:32px;margin:32px 0 18px}.privacy-document h2{font-size:21px;margin-top:32px}.privacy-document p{overflow-wrap:anywhere}
+
+.vault-notice{display:block;margin-bottom:8px;color:#a15925!important}

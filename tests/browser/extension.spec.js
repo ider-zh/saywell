@@ -145,10 +145,10 @@ test('website settings save action, target and providers, survive reload, and re
   await expect(tip.getByText('Not on blacklist',{exact:true})).toHaveCount(0);await expect(tip.getByText('On blacklist',{exact:true})).toHaveCount(0);
   await expect(tip.getByText('Website settings',{exact:true})).toBeVisible();await tip.locator('.site-policy>summary').click();
   await tip.getByLabel('Website default action',{exact:true}).selectOption('polish');await tip.getByLabel('Website target language',{exact:true}).selectOption('zh');
-  await tip.getByLabel('Website LLM configuration',{exact:true}).selectOption('work');await tip.getByLabel('Website translation engine',{exact:true}).selectOption('microsoft');
+  await tip.getByLabel('Website LLM configuration',{exact:true}).selectOption('work');await tip.getByLabel('Website translation engine',{exact:true}).selectOption('azure');
   expect(await p.evaluate(()=>window.__coachSiteSaves.length)).toBe(0);await tip.getByRole('button',{name:'Save for this website',exact:true}).click();
   await expect(tip.getByRole('status').last()).toHaveText('Website settings saved. Used from the next suggestion.');await expect(tip.getByRole('button',{name:'Apply ↗',exact:true})).toHaveCount(0);
-  expect(await p.evaluate(()=>window.__coachSiteSaves.at(-1))).toEqual({mode:'polish',targetLanguage:'zh',llmProfileId:'work',basicEngine:'microsoft'});
+  expect(await p.evaluate(()=>window.__coachSiteSaves.at(-1))).toEqual({mode:'polish',targetLanguage:'zh',llmProfileId:'work',basicEngine:'azure'});
   const current=await p.evaluate(async()=>(await chrome.runtime.sendMessage({type:'public-settings'})).data);expect(current.globalDefaults).toMatchObject({mode:'auto',targetLanguage:'en',basicEngine:'mymemory',activeLlmId:'default'});expect(current.llmEnabled).toBe(true);
   await p.evaluate(()=>{window.__coachResponses={llm:{text:'网站专属结果。',engine:'Site LLM',category:'llm',vocabulary:[]}};});
   await draft.fill('A new synthetic sentence.');await expect(tip.locator('.suggestion')).toHaveText('网站专属结果。');await expect(tip.getByLabel('Suggestion action')).toHaveValue('polish');await expect(draft).toHaveValue('A new synthetic sentence.');
@@ -180,6 +180,19 @@ test('Apply waits for the frame to receive refreshed policy after a settings not
   });
   await tip.getByRole('button',{name:'Apply ↗',exact:true}).click();await expect(draft).toHaveValue('配置同步时不应用旧建议。');
   await p.evaluate(()=>window.__releaseSettings());await expect(tip).toHaveCount(0);await expect(draft).toHaveValue('配置同步时不应用旧建议。');await p.close();
+});
+
+test('a delayed settings refresh preserves current queued input without reviving an Escape-cancelled draft',async()=>{
+  const p=await pageWithCoach(),draft=p.getByRole('textbox',{name:'Draft',exact:true}),tip=p.locator('input-coach-tip');
+  await draft.fill('配置刷新期间输入的合成句子。');await p.evaluate(()=>window.__coachSetSettings({style:'professional'}));await expect(tip.locator('.suggestion')).toHaveText('Hello, world.');expect(await p.evaluate(()=>window.__coachRequests.length)).toBe(1);
+  await draft.fill('已经取消的合成句子。');await draft.press('Escape');await p.evaluate(()=>window.__coachSetSettings({style:'natural'}));await p.waitForTimeout(650);expect(await p.evaluate(()=>window.__coachRequests.length)).toBe(1);await expect(tip).toHaveCount(0);await p.close();
+});
+test('initial policy lookup preserves committed input but waits for IME and respects denied site access',async()=>{
+  const gate=()=>{const send=chrome.runtime.sendMessage;chrome.runtime.sendMessage=async message=>{const reply=await send(message);if(message.type==='public-settings')await new Promise(resolve=>window.__releaseInitialPolicy=()=>resolve());return reply;};};
+  const p=await pageWithCoach(gate),draft=p.getByRole('textbox',{name:'Draft',exact:true});
+  await draft.fill('初次加载期间输入。');expect(await p.evaluate(()=>window.__coachRequests.length)).toBe(0);await p.evaluate(()=>window.__releaseInitialPolicy());await expect(p.locator('input-coach-tip .suggestion')).toHaveText('Hello, world.');await p.close();
+  const ime=await pageWithCoach(gate),imeDraft=ime.getByRole('textbox',{name:'Draft',exact:true});await imeDraft.fill('输入法之前。');await imeDraft.dispatchEvent('compositionstart');await ime.evaluate(()=>window.__releaseInitialPolicy());await ime.waitForTimeout(650);expect(await ime.evaluate(()=>window.__coachRequests.length)).toBe(0);await imeDraft.dispatchEvent('compositionend',{data:''});await expect(ime.locator('input-coach-tip .suggestion')).toHaveText('Hello, world.');await ime.close();
+  const denied=await pageWithCoach(()=>{window.__coachSetSettings({siteOrigins:[]});const send=chrome.runtime.sendMessage;chrome.runtime.sendMessage=async message=>{const reply=await send(message);if(message.type==='public-settings')await new Promise(resolve=>window.__releaseInitialPolicy=resolve);return reply;};});await denied.getByRole('textbox',{name:'Draft',exact:true}).fill('没有网站权限。');await denied.evaluate(()=>window.__releaseInitialPolicy());await denied.waitForTimeout(650);expect(await denied.evaluate(()=>window.__coachRequests.length)).toBe(0);await denied.close();
 });
 
 test('late LLM results preserve website editing and saving invalidates old Apply and results',async()=>{
@@ -262,8 +275,8 @@ test('extension settings render, validate defaults, and dashboard has an honest 
   await expect(p.locator('#basicEngine')).toHaveValue('auto');await expect(p.locator('#llm-remember')).not.toBeChecked();
   await expect(p.locator('#siteMode')).toHaveValue('blacklist');await expect(p.locator('#allowlist')).toBeDisabled();
   await p.locator('#siteMode').selectOption('whitelist');await expect(p.locator('#allowlist')).toBeEnabled();await p.locator('#allowlist').fill('kept.example');await p.locator('#siteMode').selectOption('blacklist');await expect(p.locator('#allowlist')).toHaveValue('kept.example');
-  await expect(p.locator('#basicFallback')).toBeChecked();await expect(p.getByRole('button',{name:'Enable free translation',exact:true})).toBeVisible();
-  await p.getByText('Fallback order & connectivity',{exact:true}).click();await expect(p.locator('#basic-order li')).toHaveCount(7);for(let i=0;i<3;i++)await p.getByRole('button',{name:'Move MyMemory up',exact:true}).click();await expect(p.locator('#basic-order li').first()).toContainText('MyMemory');
+  await expect(p.locator('#basicFallback')).toBeChecked();await expect(p.getByRole('button',{name:'Enable free translation',exact:true})).toBeHidden();
+  await p.getByText('Fallback order & connectivity',{exact:true}).click();await expect(p.locator('#basic-order li')).toHaveCount(4);await expect(p.getByRole('button',{name:'Move MyMemory up',exact:true})).toBeDisabled();await expect(p.locator('#basic-order li').first()).toContainText('MyMemory');
   await p.locator('#dailyGoal').fill('350');await p.getByRole('button',{name:'Save preferences'}).click();await expect(p.getByRole('status')).toContainText('Preferences saved');
   await p.goto(`chrome-extension://${extensionId}/dashboard.html`);await expect(p.locator('#goal-target')).toHaveText('350');await expect(p.locator('#english')).toHaveText('0');
   await p.getByRole('button',{name:'30 days',exact:true}).click();await expect(p.locator('.chart-column')).toHaveCount(30);
@@ -283,7 +296,7 @@ test('console language follows browser, switches across pages, and preserves aut
   expect(await worker.evaluate(async()=>(await chrome.storage.session.get('keys')).keys?.llm)).toBe('unsaved-secret');
   await other.goto(`chrome-extension://${extensionId}/dashboard.html`);await expect(other.locator('html')).toHaveAttribute('lang','en');
   await p.locator('#ui-language').selectOption('zh-CN');await expect(other.locator('html')).toHaveAttribute('lang','zh-CN');await expect(other.getByRole('button',{name:'30 天',exact:true})).toBeVisible();
-  await expect(p.getByRole('button',{name:'启用免费翻译',exact:true})).toBeVisible();await expect(p.locator('#basicFallback')).toBeChecked();
+  await expect(p.getByRole('button',{name:'启用免费翻译',exact:true})).toBeHidden();await expect(p.locator('#basicFallback')).toBeChecked();
   await other.getByRole('button',{name:'30 天',exact:true}).click();await expect(other.locator('#period-total')).toHaveText('近 30 天 0 个单词');await expect(other.locator('#chart')).toHaveAttribute('aria-label','近 30 天：独立输入 0 个英文单词');
   await worker.evaluate(()=>chrome.storage.local.set({vocabulary:[{word:'Natural',meaning:'原始词义',explanation:'Keep original content.',status:'saved',date:'2026-10-20'}]}));
   await other.goto(`chrome-extension://${extensionId}/vocabulary.html`);await expect(other.getByRole('heading',{name:'Natural',exact:true})).toBeVisible();await expect(other.getByRole('button',{name:'标记为已掌握'})).toBeVisible();
@@ -555,8 +568,8 @@ test('configuration download and reviewed import restore saved preferences, site
     await p.locator('#config-import-preview').screenshot({path:'test-results/config-import-preview.png'});
     await p.locator('#confirm-config-import').click();await expect(p.getByRole('status')).toContainText('Configuration imported. Reauthorize providers');
     await expect(p.locator('#llm-model')).toHaveValue('unsaved-model');await expect(p.locator('#dailyGoal')).toHaveValue('345');await expect(p.locator('#targetLanguage')).toHaveValue('zh');await expect(p.locator('#llm-key')).toHaveValue('');
-    const restored=await p.evaluate(async()=>({...(await chrome.storage.local.get(['sitePreferences','tooltipPositions','analytics','vocabulary','usage'])),state:(await chrome.runtime.sendMessage({type:'state'})).data}));
-    expect(restored.sitePreferences).toEqual(backup.sitePreferences);expect(restored.tooltipPositions).toEqual(backup.tooltipPositions);expect(restored.analytics).toEqual({fixture:{typed:7}});expect(restored.vocabulary).toEqual([{word:'preserved'}]);expect(restored.usage).toEqual({requests:5});
+    const restored=await p.evaluate(async()=>({...(await chrome.storage.local.get(['sitePreferences','tooltipPositions','usage'])),state:(await chrome.runtime.sendMessage({type:'state'})).data}));
+    expect(restored.sitePreferences).toEqual(backup.sitePreferences);expect(restored.tooltipPositions).toEqual(backup.tooltipPositions);expect(restored.state.analytics).toEqual({fixture:{typed:7}});expect(restored.state.vocabulary).toEqual([{word:'preserved'}]);expect(restored.usage).toEqual({requests:5});
     expect(restored.state.hasKeys.llm).toBe(true);expect(restored.state.settings.llm.consent).toBe(false);await expect(p.locator('#config-import-preview')).toBeHidden();
     await expect(p.locator('#llm-reconnect-help')).toBeVisible();await expect(p.locator('#llm-reconnect-help')).toContainText('enabled but not connected');await expect(p.locator('#test-llm')).toBeFocused();await expect(p.locator('#save-toast')).toContainText('Click Connect and test');await p.locator('#llm').screenshot({path:'test-results/import-reconnect-needed.png'});
   }finally{await p.evaluate(async snapshot=>{await chrome.storage.local.clear();await chrome.storage.session.clear();await chrome.storage.local.set(snapshot.local);await chrome.storage.session.set(snapshot.session);},snapshot);await p.close();}
@@ -604,6 +617,7 @@ async function providerSetupPage(profile={}){
     window.__providerSettings=settings;window.__providerCalls=[];window.__providerAllow=true;window.__providerFailure=false;window.__providerKeys={};
     chrome.permissions.request=async options=>{window.__providerCalls.push({type:'permission',origins:options.origins});if(window.__providerPermissionWait)await new Promise(resolve=>window.__providerPermissionResolve=resolve);return window.__providerAllow;};
     chrome.runtime.sendMessage=async message=>{
+      if(message.type==='vault-status')return {ok:true,data:{configured:false,locked:false,sessionOnly:true}};
       if(message.type==='setup-status')return {ok:true,data:{needed:false,initial:false}};
       if(message.type==='state')return {ok:true,data:{settings:structuredClone(window.__providerSettings),hasKeys:{},hasProfileKeys:Object.fromEntries(Object.keys(window.__providerKeys).map(id=>[id,true]))}};
       if(message.type==='save-settings'){
@@ -688,19 +702,8 @@ test('connection denies invalid or ungranted endpoints, cancels changed configur
   }finally{await p.locator('#ui-language').selectOption('en');await p.close();}
 });
 
-test('free quick start requests exactly four origins, keeps other providers off and reconnects changed web addresses explicitly',async()=>{
-  const p=await providerSetupPage();try{
-    await p.evaluate(()=>window.__providerAllow=false);await p.locator('#enable-free').click();await expect(p.getByRole('status')).toHaveText('Endpoint permission was not granted.');expect((await p.evaluate(()=>window.__providerCalls)).map(c=>c.type)).toEqual(['permission']);
-    await p.evaluate(()=>{window.__providerAllow=true;window.__providerCalls=[];});await p.locator('#enable-free').click();await expect(p.getByRole('status')).toContainText('No-key fallback enabled. Google, Bing');
-    const calls=await p.evaluate(()=>window.__providerCalls);expect(calls.map(c=>c.type)).toEqual(['permission','save']);expect(calls[0].origins).toEqual(['https://translate.googleapis.com/*','https://cn.bing.com/*','https://edge.microsoft.com/*','https://api.mymemory.translated.net/*']);
-    for(const id of ['googleweb','bing','microsoft','mymemory'])expect(calls[1].settings.basic[id].consent).toBe(true);
-    for(const id of ['libre','azure','google'])expect(calls[1].settings.basic[id].consent).toBe(false);expect(calls[1].settings.llm.consent).toBe(false);
-    await expect(p.locator('#basicEngine option[value="googleweb"]')).toHaveCount(1);await expect(p.locator('#basicEngine option[value="bing"]')).toHaveCount(1);
-    await p.getByText('Web translation addresses',{exact:true}).click();await p.locator('#bing-endpoint').fill('https://www.bing.com');await expect(p.locator('#bing-state')).toHaveText('Service not connected');
-    await p.locator('[data-test="bing"]').click();await expect(p.getByRole('status')).toHaveText('MyMemory: Hello, world.');expect((await p.evaluate(()=>window.__providerCalls)).at(-3).origins).toEqual(['https://www.bing.com/*']);
-    await p.locator('#ui-language').selectOption('zh-CN');await expect(p.locator('#enable-free')).toHaveText('启用免费翻译');await expect(p.locator('#basicEngine option[value="googleweb"]')).toHaveText('Google 翻译（网页版，实验性）');
-    await p.setViewportSize({width:390,height:1000});expect(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await p.locator('#engines').screenshot({path:'test-results/web-engines-mobile-zh.png',style:'.save-bar,.sidebar,.section-nav{visibility:hidden}'});
-  }finally{await p.locator('#ui-language').selectOption('en');await p.close();}
+test('store settings hide retired web interfaces without granting or sending anything',async()=>{
+  const p=await providerSetupPage();try{await expect(p.locator('#enable-free')).toBeHidden();for(const id of ['googleweb','bing','microsoft']){await expect(p.locator('#basicEngine option[value="'+id+'"]')).toHaveCount(0);await expect(p.locator('[data-test="'+id+'"]')).toBeHidden();}expect(await p.evaluate(()=>window.__providerCalls)).toEqual([]);await expect(p.locator('.privacy-footer a').last()).toHaveAttribute('href','privacy.en.html');}finally{await p.close();}
 });
 
 test('tooltip Small, Medium and Large resize in place, preserve late results and Apply, remember the host and clamp to narrow windows',async()=>{

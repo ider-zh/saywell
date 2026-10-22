@@ -10,9 +10,9 @@ export function mountSetup(container,{welcome=false,beforeComplete=async()=>{},o
     if(!info)return;box.classList.toggle('hidden',!welcome && !info.needed);box.classList.toggle('setup-ready',!info.needed);
     title.textContent=t(info.needed?'Website permission needed':'You’re ready to write.');
     description.classList.toggle('hidden',!welcome && info.initial);
-    description.textContent=t(info.initial?'One permission enables AI translation, polishing, vocabulary tips and machine translation on websites. No account or API key needed.':info.needed?'Website access is missing. Restore it to resume Saywell on your enabled websites.':'Start typing on a website. Saywell will offer a translation or polish after a short pause.');
-    disclosure.textContent=info.initial?t('Allow Saywell to read and change input on HTTP(S) websites and send input to Saywell Free AI (Cloudflare), Google Translate, Bing, Microsoft Edge and MyMemory. Password fields are excluded. You can pause suggestions or block websites at any time.'):'';
-    button.textContent=t(info.initial?'Allow and start using Saywell':'Request permission again');button.classList.toggle('hidden',!info.needed);
+    description.textContent=t(info.initial?'One permission enables free AI translation, polishing and vocabulary tips. Machine translation uses browser-local capabilities when supported. No account or API key needed.':info.needed?'Website access is missing. Restore it to resume Saywell on your enabled websites.':'Start typing on a website. Saywell will offer a translation or polish after a short pause.');
+    disclosure.textContent=info.initial?t('After you pause typing, the current input draft may be sent automatically to Saywell Free AI (Cloudflare). Local history keeps 100 recent source texts and results in session memory by default. Local statistics include numeric totals and hostnames. Password fields are excluded, but ordinary fields may contain sensitive text. Pause, block sites or disable recording in Settings. Read the privacy policy below before agreeing.'):'';
+    button.textContent=t(info.initial?'Agree and enable Saywell':'Request permission again');button.classList.toggle('hidden',!info.needed);
   }
   const refresh=async()=>{info=await send('setup-status');render();};
   button.addEventListener('click',async()=>{

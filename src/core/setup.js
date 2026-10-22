@@ -1,7 +1,7 @@
 import {mergeSettings,llmConfig} from './settings.js';
 import {LLM_PROVIDERS} from './llm-providers.js';
 export const SETUP_ORIGINS=['https://*/*','http://*/*'];
-export const FREE_ENGINES=['googleweb','bing','microsoft','mymemory'];
+export const FREE_ENGINES=[];
 // Only an explicit, disclosed setup click calls this. Upgrades never reset preferences.
 export function enableFreeSetup(raw){
   const s=mergeSettings(raw);

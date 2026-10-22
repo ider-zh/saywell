@@ -1,6 +1,5 @@
 import { apiURL } from '../core/security.js';
 import { ProviderError, fetchJSON, jsonPost } from './http.js';
-import {createWebProviders} from './web-translation.js';
 
 export function normalizeBasic(text) {
   if(typeof text!=='string')return text;
@@ -54,18 +53,6 @@ export function createBasicProviders({ fetcher = fetch } = {}) {
       }
     },
     {
-      id:'microsoft', name:'Microsoft Edge (experimental)', category:'basic', pairs:[['zh','en'],['en','zh']],
-      available:async config=>Boolean(config.endpoint),
-      async translate(text,config,pair={source:'zh',target:'en'}){
-        const url=new URL(apiURL(config.endpoint,'/translate/translatetext'));
-        const code=lang=>lang==='zh'?'zh-CHS':'en';url.searchParams.set('from',code(pair.source));url.searchParams.set('to',code(pair.target));
-        const data=await fetchJSON(url.toString(),jsonPost([text]),8000,fetcher);
-        const result=data?.[0]?.translations?.find(t=>t.to===code(pair.target)) || data?.[0]?.translations?.[0];
-        if(typeof result?.text!=='string' || !result.text.trim())throw new ProviderError('response','Microsoft Edge returned no usable translation.');
-        return {text:normalizeBasic(result.text)};
-      }
-    },
-    {
       id:'azure', name:'Microsoft Azure', category:'basic', pairs:[['zh','en'],['en','zh']],
       available:async config=>Boolean(config.key),
       async translate(text,config,pair={source:'zh',target:'en'}){
@@ -78,6 +65,5 @@ export function createBasicProviders({ fetcher = fetch } = {}) {
         return {text:normalizeBasic(data?.[0]?.translations?.[0]?.text)};
       }
     },
-    ...createWebProviders({fetcher})
   ];
 }

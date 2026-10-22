@@ -25,7 +25,7 @@ test('actual MV3 keyless AI uses the Worker contract, preserves host sizing and 
     await ui.evaluate(()=>chrome.storage.local.set({uiLanguage:'zh-CN'}));await draft.fill('中文额度提醒。');await expect(tip.getByText(/今日额度已耗尽/)).toBeVisible();await expect(tip).toHaveAttribute('data-size','medium');
     await tip.screenshot({path:'test-results/hosted-quota-tooltip-zh.png'});await tip.getByRole('button',{name:'Apply ↗',exact:true}).click();await expect(draft).toHaveValue('Fast translation.');
     const stored=await ui.evaluate(async()=>({local:await chrome.storage.local.get(null),session:await chrome.storage.session.get(null)}));
-    const {translationHistory,...nonHistory}=stored.local;
+    const translationHistory=(await ui.evaluate(async()=>(await chrome.runtime.sendMessage({type:'get-history'})).data)).records;const nonHistory=stored.local;
     expect(translationHistory.some(row=>row.source==='额度耗尽后保留机器翻译。')).toBe(true);
     expect(JSON.stringify({local:nonHistory,session:stored.session})).not.toContain('额度耗尽后保留');expect(Object.values(stored.session.keys || {}).some(Boolean)).toBe(false);
   }finally{await context?.close();await new Promise(resolve=>server.close(resolve));const absolute=path.resolve(root);if(!absolute.startsWith(path.resolve(os.tmpdir())+path.sep))throw new Error('Unsafe cleanup path');await rm(absolute,{recursive:true,force:true});}
