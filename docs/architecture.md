@@ -1,5 +1,7 @@
 # Architecture
 
+0.1.2 Store continuation on 2026-10-23 verified the retry design: rerunning only the previously failed delivery job reused the original tested artifact and checksum, then uploaded and submitted successfully after the prior pending-revision guard cleared. Job 120481814547 returned PENDING_REVIEW for 0.1.2. Package/tag/source and authorization boundaries remain unchanged; automatic publication still depends on Google approval. The first-attempt blocked state below is historical; see releasing.md for exact evidence.
+
 0.1.2 delivery verified on 2026-10-23: main CI and the tag build/Release jobs passed, and the actual published ZIP matched its GitHub digest and root manifest. The independent Store job enforced the other-pending-revision guard and stopped before upload, leaving the GitHub Release intact. The overall tag run records that Store failure rather than claiming complete publication. See releasing.md for IDs, checksum and recovery boundary; preparation below is historical.
 
 Release preparation on 2026-10-23: reviewed runtime changes are targeted for patch 0.1.2 after the owner's push/version request. Existing isolated tag-delivery jobs and checksum guards apply; a source push alone does not publish. Review validation below is the pre-release checkpoint, distinct from the required versioned CI/asset verification.

@@ -1,5 +1,9 @@
 # Phase 0 — technical validation
 
+## 0.1.2 Store retry verified — 2026-10-23
+
+After the owner reported 0.1.1 review approval, only the failed Store delivery job of run 39832399174 was retried. New job 120481814547 succeeded and logged `{"operation":"publish","result":"submitted_for_review","state":"PENDING_REVIEW","version":"0.1.2"}`. Its downloaded artifact SHA-256 remained `95989ec24eed7324ac9665a4a1d16d5f484b328e433b6cdf59616f0128ced725`, matching the verified public Release. No package/tag replacement or source/runtime change was needed. This verifies 0.1.2 submission, not approval/publication. Public 0.1.1 listing access was inconclusive; the owner's approval report and this API submission are distinct evidence. Earlier blocked-delivery records below describe the first attempt. Cloudflare was not deployed.
+
 ## 0.1.2 delivery result — 2026-10-23
 
 Commit 24568f9f8d6fd4cab33fff82cf78c364c7ad4439 and tag v0.1.2 were pushed. Main CI 39832398980 passed; tag run 39832399174 passed build/package and GitHub Release. The public v0.1.2 installation ZIP was downloaded without credentials: 276,548 bytes, 25 files, root manifest 0.1.2 and both policies verified. SHA-256 `95989ec24eed7324ac9665a4a1d16d5f484b328e433b6cdf59616f0128ced725` matched GitHub's asset digest. Store job 120013806876 stopped before upload because another revision awaits review/staged publication; the overall tag run is therefore failed despite successful GitHub delivery. No review withdrawal, store upload/submission for 0.1.2, tag replacement or Cloudflare deployment occurred. See releasing.md for links and recovery boundary. Preparation/review entries below are earlier checkpoints.

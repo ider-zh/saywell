@@ -2,6 +2,12 @@
 
 这三个结果需要分别验证：Actions 构建成功只代表检查和打包通过；Artifacts 是临时构建下载；GitHub Release 是项目版本下载；Chrome 商店还有独立的上传、审查与发布流程。
 
+## 0.1.2 恢复商店交付 — 2026-10-23
+
+维护者告知 0.1.1 已通过审核后，仅重试原标签流水线的商店 job。[同一流水线 39832399174](https://github.com/ider-zh/saywell/actions/runs/39832399174) 的新商店 job `120481814547` 成功，返回 `submitted_for_review`、`PENDING_REVIEW`、版本 `0.1.2`。下载的原始构建资产摘要仍为 `95989ec24eed7324ac9665a4a1d16d5f484b328e433b6cdf59616f0128ced725`，与已核验的 GitHub Release 相同；没有重建版本标签或替换安装包。
+
+0.1.2 当前已提交审核，按 `DEFAULT_PUBLISH` 等待通过后自动发布；成功提交不代表 0.1.2 已上架。公开 0.1.1 页面本轮未能独立读取，不能据此断言其公开安装状态。下节保留首次尝试的停止记录；该阻挡已在这次重试中解除。Cloudflare 未部署。
+
 ## 0.1.2 交付记录 — 2026-10-23
 
 提交 `24568f9f8d6fd4cab33fff82cf78c364c7ad4439` 与 `v0.1.2` 已推送。[main CI 39832398980](https://github.com/ider-zh/saywell/actions/runs/39832398980) 成功；[标签流水线 39832399174](https://github.com/ider-zh/saywell/actions/runs/39832399174) 的构建与 GitHub Release job 成功。[v0.1.2 Release](https://github.com/ider-zh/saywell/releases/tag/v0.1.2) 已公开为预发布版，安装包 `saywell-0.1.2.zip` 为 276,548 字节。实际重新下载后，SHA-256 为 `95989ec24eed7324ac9665a4a1d16d5f484b328e433b6cdf59616f0128ced725`，与 GitHub 资产摘要一致；包内 25 个文件、根目录 manifest 版本 0.1.2 及双语隐私页面均核对通过。

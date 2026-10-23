@@ -1,5 +1,7 @@
 # Compatibility and manual verification
 
+0.1.2 Store delivery was resumed on 2026-10-23 after the owner's 0.1.1 approval report. Retried job 120481814547 in run 39832399174 verified the same tested ZIP and successfully submitted version 0.1.2; API state is PENDING_REVIEW. This is not a published-version claim. The public 0.1.1 listing could not be independently read in this run, so its live install state remains unverified here. First-attempt blocked records below are historical; no compatibility/runtime changes were made for this retry.
+
 0.1.2 GitHub delivery is verified as of 2026-10-23: main CI/build/Release passed and the downloaded 25-file installation ZIP matched its public digest and manifest version. Chrome Store 0.1.2 delivery is blocked by an existing revision awaiting review/staged publication; the workflow stopped before upload and did not withdraw that revision. GitHub availability does not establish Store availability. See releasing.md for exact run/asset evidence; preparation entries below are earlier checkpoints.
 
 Patch 0.1.2 is being prepared from the reviewed fixes after the owner's push/new-version request on 2026-10-23. Local checks below refer to the review checkpoint until fresh versioned tests and GitHub delivery are verified. Store submission/publication and Cloudflare deployment remain separate results.
