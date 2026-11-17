@@ -8,7 +8,7 @@
 
 写英文消息时拿不准怎么表达？先用中文写下想法，或直接输入英文，Saywell 会在你停顿时给出建议。你可以保留原文、复制结果，或者点击「应用」替换；它不会替你发送消息。
 
-适用于 Chrome 和 Edge。**目前是预览版。** 请从下方 GitHub 安装包开始使用。
+适用于 Chrome 和 Edge。**现已在 Chrome 应用商店公开上线。** [从 Chrome 应用商店安装 Saywell](https://chromewebstore.google.com/detail/saywell/ofofhnaikohfnbgbckghgccobafkfeig)，也可使用下方 GitHub 安装包手动安装。
 
 ## 0.1.3 更新
 
@@ -16,15 +16,24 @@
 - **保留原始信息**：AI 使用临时占位符保护这些内容；「复制」和「应用」仍得到完整句子。校验失败时保留可用的机器翻译。
 - **混合输入更准确**：用正文判断中英方向，长网址或路径不会压过你要表达的内容。机器翻译仍处理原文。
 
-当前版本：**0.1.3** · [下载安装包与发布说明](https://github.com/ider-zh/saywell/releases/tag/v0.1.3)。截至 **2026-11-17**，GitHub 安装包已发布，Chrome 商店已通过 CI/CD 提交，状态为 **等待审核（Pending review）**；0.1.3 的商店上架仍需等待审核通过。[查看发布流水线](https://github.com/ider-zh/saywell/actions/runs/44020821626)。
+当前版本：**0.1.3** · [Chrome 应用商店](https://chromewebstore.google.com/detail/saywell/ofofhnaikohfnbgbckghgccobafkfeig) · [GitHub 安装包与发布说明](https://github.com/ider-zh/saywell/releases/tag/v0.1.3)。**2026-11-17，0.1.3 已通过审核并公开上线**，商店页面已显示版本 0.1.3。
 
 ## 安装并开始使用
 
-1. 在[版本下载页面](https://github.com/ider-zh/saywell/releases)下载 `saywell-版本号.zip`，不要选择 Source code。若尚无已发布版本，或想测试最新改动，可打开[预览构建](https://github.com/ider-zh/saywell/actions/workflows/build.yml)，选择成功的构建，在 **Artifacts** 下载安装包；此下载需要登录 GitHub。
+### 从 Chrome 应用商店安装（推荐）
+
+在 Chrome 打开 [Saywell 商店页面](https://chromewebstore.google.com/detail/saywell/ofofhnaikohfnbgbckghgccobafkfeig)，点击「添加至 Chrome」，按浏览器提示完成安装，无需开启开发者模式。
+
+### 使用 GitHub 安装包手动安装
+
+1. 在[版本下载页面](https://github.com/ider-zh/saywell/releases)下载 `saywell-版本号.zip`，不要选择 Source code。若想测试最新改动，可打开[预览构建](https://github.com/ider-zh/saywell/actions/workflows/build.yml)，选择成功的构建，在 **Artifacts** 下载安装包；此下载需要登录 GitHub。
 2. 解压到一个以后不会随意移动的文件夹。
 3. 在 Chrome 打开 `chrome://extensions`，或在 Edge 打开 `edge://extensions`。开启「开发者模式」，点击「加载已解压的扩展程序」，选择包含 `manifest.json` 的文件夹。
-4. 欢迎页打开后，阅读处理说明，点击 **「同意并启用 Saywell」**，批准浏览器的网页访问权限。
-5. 回到普通网页，在输入框中写一句话并停顿。更新或已打开的页面可能需要刷新一次。
+
+### 首次使用
+
+1. 欢迎页打开后，阅读处理说明，点击 **「同意并启用 Saywell」**，批准浏览器的网页访问权限。
+2. 回到普通网页，在输入框中写一句话并停顿。更新或已打开的页面可能需要刷新一次。
 
 **基础免费 AI 不需要账号或 API Key，一步授权即可使用。** 如果拒绝授权，工具栏会显示 `!`；可点击重新申请，也可以在设置或弹窗中只启用当前网站。
 
@@ -85,7 +94,7 @@ Saywell 免费 AI 有共享每日额度，北京时间 **08:00** 重置。额度
 
 **机器翻译没有结果？** 浏览器本地翻译取决于版本和语言模型准备情况；其他机器翻译服务需要单独连接。免费 AI 可以独立提供翻译和润色。
 
-**如何更新？** 将新版文件解压覆盖到原来的扩展文件夹，在扩展管理页点击 Saywell 的「重新加载」，再刷新网页。需要保留私有记录时，请先创建保险库；仅会话数据会在重新加载时清除。
+**如何更新？** 从 Chrome 应用商店安装的版本由浏览器自动更新。手动安装的版本需要将新版文件解压覆盖到原来的扩展文件夹，在扩展管理页点击 Saywell 的「重新加载」，再刷新网页。需要保留私有记录时，请先创建保险库；仅会话数据会在更新或重新加载时清除。
 
 **如何迁移设置？** 在设置中的「配置备份」导出或导入。备份不含密钥、保险库或历史，导入后按提示重新连接服务。
 

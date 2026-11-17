@@ -1,5 +1,7 @@
 # Architecture
 
+0.1.3 public availability verified — 2026-11-17: the owner reports Google's publication confirmation at 13:25 Asia/Shanghai. The public [Chrome Web Store listing](https://chromewebstore.google.com/detail/saywell/ofofhnaikohfnbgbckghgccobafkfeig) was independently checked and displays version 0.1.3, updated November 17, 2026. Review approval and public availability are confirmed; the pending-review entries below record earlier delivery checkpoints.
+
 0.1.3 delivery verified — 2026-11-17: commit 63f6b20e3fb3a84c9d965077a0ed0412e213c4eb and immutable tag v0.1.3 were pushed. Main CI 44020821234 and tag run 44020821626 passed. Build job 133829632609, Release job 133831296461 and Store job 133831353549 all succeeded. The public installation ZIP was independently downloaded: 281,571 bytes, 25 files, root manifest 0.1.3, both privacy pages, masking and tag code verified. SHA-256 5ffb16b9d275a4c8d94484ef4e8e076c4bd0e10b4bc6b7cca8b87a308c3ec3ec matches the Release digest and Store-downloaded CI artifact. Store API returned {"operation":"publish","result":"submitted_for_review","state":"PENDING_REVIEW","version":"0.1.3"}. Submission is verified; approval/publication remain external pending results. No Cloudflare deployment or live model-preservation test was performed. Earlier preparation/local-only entries are historical checkpoints.
 
 ## 0.1.3 delivery scope — 2026-11-17

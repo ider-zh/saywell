@@ -8,7 +8,7 @@ Translate and polish where you type.
 
 Unsure how to phrase an English message? Write your thought in Chinese, or draft in English, and pause for a suggestion. Keep the original, copy the result or choose Apply. Saywell never sends the message for you.
 
-For Chrome and Edge. **This is a preview.** Start with the GitHub installation package below.
+For Chrome and Edge. **Now publicly available on the Chrome Web Store.** [Install Saywell from the Chrome Web Store](https://chromewebstore.google.com/detail/saywell/ofofhnaikohfnbgbckghgccobafkfeig), or use the GitHub package below for manual installation.
 
 ## What changes in 0.1.3
 
@@ -16,15 +16,24 @@ For Chrome and Edge. **This is a preview.** Start with the GitHub installation p
 - **Keep the details intact:** AI uses temporary placeholders; Copy and Apply still produce the complete sentence. Available MT stays usable if AI fails preservation checks.
 - **Better mixed-content routing:** Prose determines the translation direction, so long references do not outweigh your message. MT continues to receive the original text.
 
-Current version: **0.1.3** · [Installation package and release notes](https://github.com/ider-zh/saywell/releases/tag/v0.1.3). As of **2026-11-17**, the GitHub package is released and CI/CD has submitted it to Chrome Store: **Pending review**. Store availability of 0.1.3 awaits approval. [View the delivery workflow](https://github.com/ider-zh/saywell/actions/runs/44020821626).
+Current version: **0.1.3** · [Chrome Web Store](https://chromewebstore.google.com/detail/saywell/ofofhnaikohfnbgbckghgccobafkfeig) · [GitHub installation package and release notes](https://github.com/ider-zh/saywell/releases/tag/v0.1.3). **Version 0.1.3 passed review and became publicly available on November 17, 2026.** The store listing shows version 0.1.3.
 
 ## Install and start writing
 
-1. Download `saywell-VERSION.zip` from [Releases](https://github.com/ider-zh/saywell/releases), rather than Source code. If no version has been released yet, or you want the latest changes, open [preview builds](https://github.com/ider-zh/saywell/actions/workflows/build.yml), select a successful build and download the package under **Artifacts**; that download requires GitHub sign-in.
+### Install from the Chrome Web Store (recommended)
+
+Open the [Saywell store listing](https://chromewebstore.google.com/detail/saywell/ofofhnaikohfnbgbckghgccobafkfeig) in Chrome, select **Add to Chrome**, and follow the browser prompts. Developer mode is not required.
+
+### Install the GitHub package manually
+
+1. Download `saywell-VERSION.zip` from [Releases](https://github.com/ider-zh/saywell/releases), rather than Source code. To test the latest changes, open [preview builds](https://github.com/ider-zh/saywell/actions/workflows/build.yml), select a successful build and download the package under **Artifacts**; that download requires GitHub sign-in.
 2. Extract it into a folder you intend to keep.
 3. Open `chrome://extensions` in Chrome or `edge://extensions` in Edge. Enable **Developer mode**, select **Load unpacked**, and choose the folder containing `manifest.json`.
-4. Read the welcome disclosure, select **Agree and enable Saywell**, and approve website access.
-5. Type a sentence in an ordinary website input and pause. Refresh an already open page if needed.
+
+### First use
+
+1. Read the welcome disclosure, select **Agree and enable Saywell**, and approve website access.
+2. Type a sentence in an ordinary website input and pause. Refresh an already open page if needed.
 
 **Basic free AI needs no account or API key: one permission action gets you started.** If access is declined, the toolbar shows `!` with a retry action. You can also enable individual sites from Settings or the popup.
 
@@ -85,7 +94,7 @@ Already have a provider account? Add OpenAI, DeepSeek, Xiaomi MiMo, SiliconFlow,
 
 **No machine translation?** Browser-local MT depends on browser/model availability; other MT requires a separate connection. Free AI can translate and polish independently.
 
-**How do I update?** Extract new files over the same extension folder, select Reload on the Saywell extension card, and refresh the website. Create a vault first if you want to retain private records; session-only records clear on reload.
+**How do I update?** Chrome Web Store installations update automatically through the browser. For manual installations, extract new files over the same extension folder, select Reload on the Saywell extension card, and refresh the website. Create a vault first if you want to retain private records; session-only records clear on update or reload.
 
 **How do I move settings?** Use Configuration backup in Settings. It excludes keys, vault data and history. Reconnect providers when prompted after import.
 
