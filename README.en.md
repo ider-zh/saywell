@@ -10,6 +10,14 @@ Unsure how to phrase an English message? Write your thought in Chinese, or draft
 
 For Chrome and Edge. **This is a preview.** Start with the GitHub installation package below.
 
+## What changes in 0.1.3
+
+- **Focus on your writing:** Websites, emails, common paths and IDs fold into small tags. Expand a tag to view or copy the original.
+- **Keep the details intact:** AI uses temporary placeholders; Copy and Apply still produce the complete sentence. Available MT stays usable if AI fails preservation checks.
+- **Better mixed-content routing:** Prose determines the translation direction, so long references do not outweigh your message. MT continues to receive the original text.
+
+Version **0.1.3** · [Installation package and release notes](https://github.com/ider-zh/saywell/releases/tag/v0.1.3). Separate CI/CD submits the package to Chrome Store review. GitHub downloads and Store publication are separate states; the Store dashboard shows review progress.
+
 ## Install and start writing
 
 1. Download `saywell-VERSION.zip` from [Releases](https://github.com/ider-zh/saywell/releases), rather than Source code. If no version has been released yet, or you want the latest changes, open [preview builds](https://github.com/ider-zh/saywell/actions/workflows/build.yml), select a successful build and download the package under **Artifacts**; that download requires GitHub sign-in.
@@ -29,7 +37,9 @@ For Chrome and Edge. **This is a preview.** Start with the GitHub installation p
 
 Use **Alt + Shift + E** for a manual suggestion, or **Command + Shift + E** on macOS.
 
-Content consisting only of URLs, email addresses, numbers or clear identifiers (such as UUIDs, hashes or order IDs) skips automatic suggestions and the progress ring. Sentences containing natural language still work normally. Use the manual shortcut to process skipped content when needed.
+Content consisting only of URLs, email addresses, common file paths, numbers or clear identifiers (such as UUIDs, hashes or order IDs) skips automatic suggestions and the progress ring. Sentences containing natural language still work normally. Use the manual shortcut to process skipped content when needed.
+
+In mixed sentences, addresses, paths and clear identifiers become temporary placeholders before AI processing and are restored afterward. If AI fails to preserve them, Saywell shows an error and keeps available MT. MT still receives the full original text. Exact original values fold into small tags that expand for viewing or copying. Copy and Apply use the complete real text, and practice uses the fully restored sentence too. Unrecognized formats may remain plain text.
 
 ![Saywell translation and polishing beside an input, using demonstration text](store/assets/screenshot-translation-zh.png)
 

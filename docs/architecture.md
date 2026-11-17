@@ -1,5 +1,21 @@
 # Architecture
 
+## 0.1.3 delivery scope — 2026-11-17
+
+The protected-content release keeps provider adapters, endpoint/site consent, Worker request schema and full-source Apply guards unchanged. Only LLM requests use request-local masking; MT uses original text. Compact tags are a display layer over restored results. The existing tag-triggered build/Release/Chrome review pipeline delivers this extension update without a Cloudflare deployment.
+
+## Transient protected content — 2026-10-28
+
+Local validation: 158 functional tests, 1 isolated performance test, 71 Chromium scenarios, package and Worker dry-run passed. Source remains a local development change; live model retention and actual site/browser compatibility require separate evidence. See technical-validation.md for measured limits and failures repaired during implementation.
+
+`core/special-content.js` detects common HTTP(S)/bare websites, emails, Windows/UNC/Unix/explicit relative paths, relative filenames and obvious IDs. Extraction is bounded to 20,000 characters; source requests retain their existing 6,000-character limit. The automatic prefilter also skips standalone common paths. Mixed prose remains eligible.
+
+Mixed-language routing counts prose outside recognized references, so a long URL cannot suppress the Chinese MT lane and a Chinese filename cannot outweigh English prose. Reference-only/manual cases retain their prior language routing. Detection regexes use left boundaries to avoid quadratic retries inside unbroken addresses; a separate 5,000-character mixed-routing budget checks that path.
+
+Only the LLM adapter substitutes request-local typed nonce placeholders. Every provider, including the existing hosted `/coach` schema, receives masked source without the value map. The map is held in the pending request closure and never returned, stored or exported. Main output must preserve each occurrence exactly once; reordering is allowed. Lost, changed, duplicated or foreign placeholders fail safely with no raw-source retry. Optional invalid explanation/alternative fields are dropped. Restoration is one pass, bounded by existing result limits, with vocabulary selected only from prose. Vocabulary notes/examples referencing original protected values are discarded so ordinary word saving does not implicitly save sentence context; the existing explicit context checkbox remains separate. Explain keeps original text; no Cloudflare deployment/schema change is required. Custom/local prompts describe the token contract; live hosted model preservation remains unverified until a separate controlled probe.
+
+MT continues its existing full-source contract. Tooltip rendering folds only exact original values into localized, keyboard-accessible inline tags. Modified MT values remain visible as plain text. Tags use text nodes, no navigable/generated links; expansion supports copying the original value. Reading an expanded tag defers a late primary replacement until collapse. Main/MT Copy and Apply, practice and history use restored/full strings; Apply still compares the complete original editor source. Tags are a presentation layer, not a replacement format.
+
 0.1.2 Store continuation on 2026-10-23 verified the retry design: rerunning only the previously failed delivery job reused the original tested artifact and checksum, then uploaded and submitted successfully after the prior pending-revision guard cleared. Job 120481814547 returned PENDING_REVIEW for 0.1.2. Package/tag/source and authorization boundaries remain unchanged; automatic publication still depends on Google approval. The first-attempt blocked state below is historical; see releasing.md for exact evidence.
 
 0.1.2 delivery verified on 2026-10-23: main CI and the tag build/Release jobs passed, and the actual published ZIP matched its GitHub digest and root manifest. The independent Store job enforced the other-pending-revision guard and stopped before upload, leaving the GitHub Release intact. The overall tag run records that Store failure rather than claiming complete publication. See releasing.md for IDs, checksum and recovery boundary; preparation below is historical.

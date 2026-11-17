@@ -1,5 +1,6 @@
 // English source messages are stable keys. Provider/user content is never translated here.
 export default {
+  'AI could not preserve special content. Use MT or try again.':'大模型未能完整保留特殊内容，请使用机器翻译或重试。',
   'Private storage is full. Remove saved vocabulary or history before saving more.':'本地私密存储已满，请清理部分词汇或历史记录后重试。',
   'Private data is invalid.':'私密数据无效。',
   'Wait for API keys to finish clearing before saving preferences.':'请等待 API 密钥清理完成后再保存设置。',

@@ -1,3 +1,4 @@
+import {specialSpans} from './special-content.js';
 export const han = /\p{Script=Han}/gu;
 export const englishWords = /[A-Za-z]+(?:['’-][A-Za-z]+)*/g;
 export function countChars(text){let count=0;for(let i=0;i<text.length;i++,count++){const code=text.charCodeAt(i),next=text.charCodeAt(i+1);if(code>=0xd800 && code<=0xdbff && next>=0xdc00 && next<=0xdfff)i++;}return count;}
@@ -5,7 +6,14 @@ export const countEnglish = text => (text.match(englishWords) || []).length;
 export const countChinese = text => (text.match(han) || []).length;
 
 export function classify(text) {
-  const zh = countChinese(text), en = (text.match(/[A-Za-z]/g) || []).length;
+  let zh = countChinese(text), en = (text.match(/[A-Za-z]/g) || []).length;
+  // Long URLs must not make a Chinese prompt look English, nor a Chinese
+  // filename make English prose look Chinese. Leave reference-only/manual cases intact.
+  if(zh && en){
+    let plainZh=zh,plainEn=en;
+    for(const span of specialSpans(text)){plainZh-=countChinese(span.value);plainEn-=(span.value.match(/[A-Za-z]/g) || []).length;}
+    if(plainZh || plainEn){zh=plainZh;en=plainEn;}
+  }
   if (!zh && !en) return 'other';
   if (!zh) return 'english';
   if (!en || zh >= en * 1.5) return 'chinese';

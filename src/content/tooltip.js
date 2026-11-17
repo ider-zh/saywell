@@ -4,6 +4,7 @@ import {llmProviderName} from '../core/llm-providers.js';
 import {validTooltipPosition,tooltipBounds,clampTooltip,relativeTooltip,placedTooltip,safeTooltipDock} from '../core/tooltip-position.js';
 import {TOOLTIP_SIZES,validTooltipSize} from '../core/tooltip-size.js';
 import {createPracticeComparer} from '../core/practice-diff.js';
+import {specialSegments} from '../core/special-content.js';
 const css=`
 :host{all:initial;color-scheme:light;font:14px/1.5 'Segoe UI',sans-serif;color:#203d36;position:fixed;z-index:2147483647;display:block;width:min(410px,calc(100vw - 24px));}
 *{box-sizing:border-box} .card{background:#fffef9;border:1px solid #cdd8cd;border-radius:16px;box-shadow:0 12px 45px #163b3426;overflow:hidden;padding:16px;animation:arrive .16s ease-out}
@@ -16,6 +17,7 @@ const dragCSS='.drag-handle{display:flex;align-items:center;gap:5px;flex:1;min-w
 const sizeCSS=`:host{--pad:10px;--text:16px;--body:130px;--space:7px;font-size:12px}:host([data-size=medium]){--pad:13px;--text:18px;--body:190px;--space:10px;font-size:13px}:host([data-size=large]){--pad:16px;--text:20px;--body:260px;--space:12px;font-size:14px}.card{padding:var(--pad)}header{margin-bottom:var(--space);gap:5px}.suggestion{font-size:var(--text);max-height:var(--body);margin:6px 0 var(--space)}.toolbar{margin-bottom:var(--space);flex-wrap:wrap;gap:5px}.engine{letter-spacing:0;overflow-wrap:anywhere}footer{padding-top:var(--space);gap:5px}footer button{padding:4px 8px}.tooltip-size{width:74px;min-width:0;font-size:10px;padding:3px;flex:none}.saywell-mark{width:19px;height:19px}.grip{margin-right:3px}.note:empty{display:none}`;
 const practiceCSS=`.mini-entry{border:0;padding:2px 0;color:#71806c;font-size:10px}.snooze-entry{display:grid;place-items:center;flex:none;width:20px;height:22px;border:0;padding:0;font-size:17px;color:#71806c}.mini-menu{background:#f2f5ec;border-radius:8px;padding:9px;margin-bottom:9px;display:flex;flex-wrap:wrap;gap:7px;align-items:end}.mini-menu[hidden]{display:none}.mini-menu label{display:grid;gap:3px;font-size:10px;flex:1;min-width:80px}.mini-menu select{width:100%;min-width:0;font-size:11px}.mini-menu button{font-size:10px;padding:4px 7px}.practice-panel{margin:8px 0 12px;padding:10px;background:#f4f6ee;border:1px solid #e0e6d6;border-radius:10px}.practice-heading{display:flex;align-items:center;justify-content:space-between;font-size:11px;font-weight:600}.practice-heading button{padding:0 4px;border:0;font-size:16px}.practice-target{font:15px/1.5 Georgia,serif;white-space:pre-wrap;overflow-wrap:anywhere;max-height:85px;overflow:auto;margin:7px 0 9px}.practice-editor{position:relative}.practice-editor textarea,.practice-mirror{font:14px/1.6 'Segoe UI',sans-serif;letter-spacing:normal;white-space:pre-wrap;overflow-wrap:anywhere;tab-size:4;padding:9px;margin:0;box-sizing:border-box}.practice-editor textarea{display:block;position:relative;z-index:1;background:transparent;color:#203d36;caret-color:#234f40;width:100%;height:88px;min-height:65px;max-height:150px;resize:vertical;border:1px solid #c7d2bd;border-radius:7px}.practice-editor textarea:focus{outline:2px solid #718e65;outline-offset:1px}.practice-mirror{position:absolute;top:1px;left:1px;pointer-events:none;overflow:hidden;color:transparent;background:#fffef9;border-radius:6px}.practice-mirror mark{color:transparent}.practice-major{background:#f6d8cf;border-radius:2px;text-decoration:underline;text-decoration-color:#b85d42}.practice-minor{background:#ece9d6;border-radius:2px;text-decoration:underline dotted #aa9d6b}.practice-pending{color:#94a08d;background:transparent}.practice-summary{display:flex;align-items:start;justify-content:space-between;gap:8px;margin-top:7px;font-size:10px;color:#71806c}.practice-summary p{margin:0}.practice-summary button{border:0;padding:0;white-space:nowrap;font-size:10px}.practice-help{margin:5px 0 0;font-size:10px;color:#7b8874}:host([data-practicing]) .suggestion,:host([data-practicing]) .practice-entry{display:none}`;
 const node=(tag,text,attrs={})=>{const e=document.createElement(tag); if(text!==undefined)e.textContent=text;for(const[k,v]of Object.entries(attrs))e.setAttribute(k,v);return e;};
+const specialCSS='.special-token{display:inline;padding:1px 5px;margin:0 1px;border:1px solid #d8dfd2;border-radius:5px;background:#f2f4ed;color:#586b51;font:11px/1.65 "Segoe UI",sans-serif;vertical-align:1px;white-space:nowrap}.special-token::after{content:" ›";opacity:.6}.special-token[aria-expanded=true]::after{content:" ‹"}.special-value{font:11px/1.6 ui-monospace,Consolas,monospace;color:#55674e;background:#f2f4ed;padding:1px 4px;overflow-wrap:anywhere;white-space:pre-wrap}.special-value[hidden]{display:none}.special-copy{margin-left:4px;padding:2px}';
 const progressCSS=`:host{all:initial;position:fixed;display:block;width:24px;height:24px;z-index:2147483647;color:#315f48}svg{display:block;width:24px;height:24px;background:#fffef9;border-radius:50%;box-shadow:0 1px 4px #163b3426}circle{fill:none;stroke-width:2}.track{stroke:#dde5d7}.progress{stroke:currentColor;stroke-linecap:round;stroke-dasharray:24 76;transform-origin:center;animation:orbit 1.2s linear infinite,breathe 1.8s ease-in-out infinite}:host([data-paused]) .progress{animation-play-state:paused}@keyframes orbit{from{transform:rotate(-90deg)}to{transform:rotate(270deg)}}@keyframes breathe{0%,100%{stroke-dasharray:24 76}50%{stroke-dasharray:64 36}}@media(prefers-reduced-motion:reduce){.progress{animation:none;transform:rotate(-90deg)}}`;
 const progressHelpCSS=`:host{pointer-events:auto;contain:size style}.progress-help{position:fixed;margin:0;padding:9px 11px;background:#214d3f;color:#fff3d6;border-radius:8px;box-shadow:0 4px 16px #163b3426;font:12px/1.5 'Segoe UI',sans-serif;overflow:hidden;overflow-wrap:anywhere;box-sizing:border-box;pointer-events:none}.progress-help[hidden]{display:none}svg{pointer-events:none}`;
 // Animate decoration, not button geometry: pointer-down/click must keep the same target.
@@ -96,7 +98,8 @@ export class Tooltip {
   }
   editingSite(){return this.shadow.activeElement?.matches('[data-site-field],.tooltip-size');}
   setSize(size){this.size=validTooltipSize(size)?size:'small';this.host.dataset.size=this.size;if(this.sizeControl)this.sizeControl.value=this.size;this.position(this.editor);}
-  flushQueued(){if(!this.practice && !this.snoozeOpen && !this.pointerActive && !this.editingSite() && this.queuedView && this.host.isConnected){const[editor,view]=this.queuedView;this.queuedView=null;this.show(editor,view);}}
+  readingSpecial(){return Boolean(this.shadow.querySelector('.special-token[aria-expanded=true]'));}
+  flushQueued(){if(!this.practice && !this.snoozeOpen && !this.pointerActive && !this.editingSite() && !this.readingSpecial() && this.queuedView && this.host.isConnected){const[editor,view]=this.queuedView;this.queuedView=null;this.show(editor,view);}}
   close(keepProgress=false){if(!keepProgress)this.hideProgress();this.discardQueued();this.cancelDrag();cancelAnimationFrame(this.positionFrame);cancelAnimationFrame(this.practiceFrame);this.positionFrame=0;this.practiceFrame=0;this.pointerActive=false;this.siteOpen=false;this.siteKey=null;this.practice=null;this.snoozeOpen=false;if(this.host.hasAttribute('data-practicing'))this.host.removeAttribute('data-practicing');if(this.host.isConnected)this.host.remove();}
   openSiteSettings(){const panel=this.shadow.querySelector('.site-policy');if(panel){panel.open=true;this.siteOpen=true;this.position(this.editor);}}
   restorePosition(position){this.placement=validTooltipPosition(position)?{x:position.x,y:position.y}:null;this.updatePositionControl();this.position(this.editor);}
@@ -257,7 +260,7 @@ export class Tooltip {
     policy.append(admin);return policy;
   }
   show(editor,view) {
-    if((this.practice || this.snoozeOpen || this.pointerActive || this.editingSite()) && this.host.isConnected){this.queuedView=[editor,view];return;}
+    if((this.practice || this.snoozeOpen || this.pointerActive || this.editingSite() || this.readingSpecial()) && this.host.isConnected){this.queuedView=[editor,view];return;}
     const progressPoint=this.progressHost?.isConnected && this.progressHost.style.display!=='none'?{left:parseFloat(this.progressHost.style.left),top:parseFloat(this.progressHost.style.top)}:null;
     this.hideProgress();
     this.discardQueued();
@@ -266,7 +269,7 @@ export class Tooltip {
     const hadFocus=document.activeElement===this.host;
     this.site=site;
     this.isSitePanel=Boolean(site && !result && !busy && !error);
-    this.shadow.replaceChildren(); const style=node('style',css+siteCSS+compactCSS+dragCSS+sizeCSS+practiceCSS);const card=node('section',undefined,{class:'card','aria-label':'Saywell suggestion'});
+    this.shadow.replaceChildren(); const style=node('style',css+siteCSS+compactCSS+dragCSS+sizeCSS+practiceCSS+specialCSS);const card=node('section',undefined,{class:'card','aria-label':'Saywell suggestion'});
     const header=node('header');this.makeHandle(header,site);
     const close=this.button('×',this.handlers.onDismiss);close.className='close';close.setAttribute('aria-label',siteText(site || {},'Dismiss suggestion'));close.title=siteText(site || {},'Dismiss suggestion');header.append(close);card.append(header,this.makeSnooze());
     const toolbar=node('div',undefined,{class:'row toolbar'});const select=node('select',undefined,{'aria-label':'Suggestion action'});
@@ -282,8 +285,8 @@ export class Tooltip {
       const sentence=node('div',undefined,{class:'suggestion'});this.renderSentence(sentence,result);card.append(sentence);
       const practice=this.button(siteText(site || {},'Practice this sentence'),()=>this.startPractice(result));practice.className='mini-entry practice-entry';card.append(practice);this.practiceArea=node('div');card.append(this.practiceArea);
       if(!result.changed && result.action!=='explain')card.append(node('p','Already sounds natural.',{class:'note'}));
-      if(result.explanation){const detail=node('details');detail.append(node('summary',result.action==='explain'?'Meaning & phrasing':'Why this change'),node('p',result.explanation));if(result.action==='explain')detail.open=true;card.append(detail);}
-      if(result.alternative){const detail=node('details');detail.append(node('summary','Another way to say it'),node('p',result.alternative));card.append(detail);}
+      if(result.explanation){const detail=node('details'),text=node('p');this.renderSentence(text,{...result,text:result.explanation,vocabulary:[]});detail.append(node('summary',result.action==='explain'?'Meaning & phrasing':'Why this change'),text);if(result.action==='explain')detail.open=true;card.append(detail);}
+      if(result.alternative){const detail=node('details'),text=node('p');this.renderSentence(text,{...result,text:result.alternative,vocabulary:[]});detail.append(node('summary','Another way to say it'),text);card.append(detail);}
       this.vocabArea=node('div');card.append(this.vocabArea);
       const footer=node('footer');footer.append(this.button('Copy',()=>this.handlers.onCopy(result.text)),node('span',undefined,{class:'spacer'}),this.button('Dismiss',this.handlers.onDismiss));
       const apply=this.button('Apply ↗',()=>this.handlers.onApply(result),true);apply.disabled=!result.canApply || !result.changed || result.action==='explain';footer.append(apply);card.append(footer);
@@ -309,18 +312,28 @@ export class Tooltip {
     if(llmError)area.append(node('p',`${label('LLM unavailable; showing MT.')} ${label(llmError)}`,{class:'note',role:'status'}));
     if(mtError && !pendingLLM)area.append(node('p',label('MT unavailable; showing LLM.'),{class:'note'}));
     if(mtResult){
-      const detail=node('details',undefined,{class:'mt-result'});detail.append(node('summary',`${label('Machine translation')} · ${mtResult.engine}`),node('p',mtResult.text,{class:'mt-text'}));
+      const detail=node('details',undefined,{class:'mt-result'}),text=node('p',undefined,{class:'mt-text'});this.renderSentence(text,{...mtResult,vocabulary:[]});detail.append(node('summary',`${label('Machine translation')} · ${mtResult.engine}`),text);
       const actions=node('div',undefined,{class:'row'});actions.append(this.button(label('Copy MT'),()=>this.handlers.onCopy(mtResult.text)),this.button(label('Practice MT'),()=>this.startPractice(mtResult)));
       const apply=this.button(label('Apply MT'),()=>this.handlers.onApply(mtResult));apply.disabled=!mtResult.canApply || !mtResult.changed;apply.addEventListener('pointerdown',e=>e.preventDefault());actions.append(apply);detail.append(actions);area.append(detail);
       detail.addEventListener('toggle',()=>{if(this.editor)this.position(this.editor);});
     }
   }
   renderSentence(container,result){
-    const terms=(result.vocabulary || []).map(v=>({...v,pos:result.text.toLowerCase().indexOf(v.word.toLowerCase())})).filter(v=>v.pos>=0).sort((a,b)=>a.pos-b.pos);
+    for(const part of specialSegments(result.text,result.source ?? result.text)){
+      if(!part.kind){this.renderProse(container,part.text,result);continue;}
+      const label=message=>siteText(this.site || {},message),name=label({URL:'Website',EMAIL:'Email',PATH:'File path',ID:'Identifier'}[part.kind]),id=`special-value-${this.specialId=(this.specialId || 0)+1}`;
+      const value=node('code',part.text,{class:'special-value',id,hidden:''}),copy=this.button(label('Copy original'),()=>this.handlers.onCopy(part.text)),button=this.button(`${name} ${part.index}`,()=>{
+        const open=button.getAttribute('aria-expanded')!=='true';button.setAttribute('aria-expanded',String(open));value.hidden=copy.hidden=!open;button.title=label(open?'Hide original content':'Show original content');this.requestPosition(this.editor);if(!open)this.flushQueued();
+      });
+      copy.className='mini-entry special-copy';copy.hidden=true;button.className='special-token';button.setAttribute('aria-label',`${name} ${part.index}`);button.setAttribute('aria-expanded','false');button.setAttribute('aria-controls',id);button.title=label('Show original content');container.append(button,value,copy);
+    }
+  }
+  renderProse(container,text,result){
+    const terms=(result.vocabulary || []).map(v=>({...v,pos:text.toLowerCase().indexOf(v.word.toLowerCase())})).filter(v=>v.pos>=0).sort((a,b)=>a.pos-b.pos);
     let offset=0;
-    for(const item of terms){if(item.pos<offset)continue;container.append(document.createTextNode(result.text.slice(offset,item.pos)));
-      const b=this.button(result.text.slice(item.pos,item.pos+item.word.length),()=>this.word(item,result));b.className='word';b.title=`${item.word} · ${item.meaning}`;b.addEventListener('mouseenter',()=>this.word(item,result));container.append(b);offset=item.pos+item.word.length;}
-    container.append(document.createTextNode(result.text.slice(offset)));
+    for(const item of terms){if(item.pos<offset)continue;container.append(document.createTextNode(text.slice(offset,item.pos)));
+      const b=this.button(text.slice(item.pos,item.pos+item.word.length),()=>this.word(item,result));b.className='word';b.title=`${item.word} · ${item.meaning}`;b.addEventListener('mouseenter',()=>this.word(item,result));container.append(b);offset=item.pos+item.word.length;}
+    container.append(document.createTextNode(text.slice(offset)));
   }
   word(item,result){
     const box=node('div',undefined,{class:'vocab'});box.append(node('strong',item.word),node('p',`${item.pronunciation || ''} ${item.meaning}`),node('p',item.explanation));

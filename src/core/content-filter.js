@@ -1,5 +1,6 @@
 // Automatic requests need prose worth translating. Keep this conservative:
 // ambiguous words and mixed sentences stay eligible; manual requests bypass it.
+import {specialSpans} from './special-content.js';
 const numeric=/^[\d\s.,，、;；:：/\\+−–—\-()%％‰°=<>≤≥×÷*\[\]{}\p{Sc}]+$/u;
 const digits=/\d/;
 const label=/^(?:id|uuid|guid|uid|sku|sn|no|order)[:：#]$/i;
@@ -31,6 +32,9 @@ function address(value){
 function dataAtom(value){
   if(numeric.test(value) && digits.test(value) || timestamp.test(value))return true;
   if(uuid.test(value) || hash.test(value) || address(value))return true;
+  if(/^(?:[A-Za-z]:[\\/]|\\\\|\/|\.{1,2}\/|~\/|["']|[A-Za-z0-9_.@-]+\/)/.test(value)){
+    const spans=specialSpans(value);if(spans.length===1 && spans[0].kind==='PATH' && (spans[0].value===value || value.slice(1,-1)===spans[0].value))return true;
+  }
   return digits.test(value) && (prefixedId.test(value) || upperId.test(value) || underscoreId.test(value));
 }
 export function shouldSkipAutomaticContent(text){

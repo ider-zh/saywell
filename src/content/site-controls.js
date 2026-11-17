@@ -5,6 +5,8 @@ export function siteInfo(host,settings,browserLanguage='en'){
   return {host,mode:settings.siteMode || 'blacklist',blocked:Boolean(rule),rule,canRemove:rule?.toLowerCase()===host.toLowerCase(),language:resolveLanguage(settings.uiLanguage,browserLanguage),preferences:settings.sitePreferences || {},defaults:settings.globalDefaults || {},profiles:settings.llmChoices || [],llmNeedsConnection:Boolean(settings.llmNeedsConnection),llmNeedsUnlock:Boolean(settings.llmNeedsUnlock)};
 }
 const chinese={
+  'Website':'网址','Email':'邮箱','File path':'文件路径','Identifier':'编号','Show original content':'展开原始内容','Hide original content':'收起原始内容','Copy original':'复制原始内容',
+  'AI could not preserve special content. Use MT or try again.':'大模型未能完整保留特殊内容，请使用机器翻译或重试。',
   'Unlock the vault in Settings to use saved API keys.':'请在设置中解锁保险库，以使用保存的 API 密钥。',
   'Unlock vault in Settings':'去设置解锁保险库',
   'AI is not connected. Connect the selected configuration to restore AI translation and polishing.':'大模型尚未连接，请连接所选配置以恢复 AI 翻译与润色。',
