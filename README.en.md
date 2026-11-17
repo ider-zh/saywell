@@ -16,7 +16,7 @@ For Chrome and Edge. **This is a preview.** Start with the GitHub installation p
 - **Keep the details intact:** AI uses temporary placeholders; Copy and Apply still produce the complete sentence. Available MT stays usable if AI fails preservation checks.
 - **Better mixed-content routing:** Prose determines the translation direction, so long references do not outweigh your message. MT continues to receive the original text.
 
-Version **0.1.3** · [Installation package and release notes](https://github.com/ider-zh/saywell/releases/tag/v0.1.3). Separate CI/CD submits the package to Chrome Store review. GitHub downloads and Store publication are separate states; the Store dashboard shows review progress.
+Current version: **0.1.3** · [Installation package and release notes](https://github.com/ider-zh/saywell/releases/tag/v0.1.3). As of **2026-11-17**, the GitHub package is released and CI/CD has submitted it to Chrome Store: **Pending review**. Store availability of 0.1.3 awaits approval. [View the delivery workflow](https://github.com/ider-zh/saywell/actions/runs/44020821626).
 
 ## Install and start writing
 

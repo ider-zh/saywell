@@ -1,5 +1,11 @@
 # 构建、GitHub Release 与 Chrome 商店
 
+## 0.1.3 交付记录 — 2026-11-17
+
+0.1.3 delivery verified — 2026-11-17: commit 63f6b20e3fb3a84c9d965077a0ed0412e213c4eb and immutable tag v0.1.3 were pushed. Main CI 44020821234 and tag run 44020821626 passed. Build job 133829632609, Release job 133831296461 and Store job 133831353549 all succeeded. The public installation ZIP was independently downloaded: 281,571 bytes, 25 files, root manifest 0.1.3, both privacy pages, masking and tag code verified. SHA-256 5ffb16b9d275a4c8d94484ef4e8e076c4bd0e10b4bc6b7cca8b87a308c3ec3ec matches the Release digest and Store-downloaded CI artifact. Store API returned {"operation":"publish","result":"submitted_for_review","state":"PENDING_REVIEW","version":"0.1.3"}. Submission is verified; approval/publication remain external pending results. No Cloudflare deployment or live model-preservation test was performed. Earlier preparation/local-only entries are historical checkpoints.
+
+[GitHub Release](https://github.com/ider-zh/saywell/releases/tag/v0.1.3) · [标签流水线](https://github.com/ider-zh/saywell/actions/runs/44020821626) · [main CI](https://github.com/ider-zh/saywell/actions/runs/44020821234)。
+
 这三个结果需要分别验证：Actions 构建成功只代表检查和打包通过；Artifacts 是临时构建下载；GitHub Release 是项目版本下载；Chrome 商店还有独立的上传、审查与发布流程。
 
 ## 0.1.2 恢复商店交付 — 2026-10-23

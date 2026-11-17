@@ -16,7 +16,7 @@
 - **保留原始信息**：AI 使用临时占位符保护这些内容；「复制」和「应用」仍得到完整句子。校验失败时保留可用的机器翻译。
 - **混合输入更准确**：用正文判断中英方向，长网址或路径不会压过你要表达的内容。机器翻译仍处理原文。
 
-本次版本：**0.1.3** · [下载安装包与发布说明](https://github.com/ider-zh/saywell/releases/tag/v0.1.3)。Chrome 商店通过独立 CI/CD 提交审核；GitHub 下载与商店上架是两个状态，审核进度以商店后台为准。
+当前版本：**0.1.3** · [下载安装包与发布说明](https://github.com/ider-zh/saywell/releases/tag/v0.1.3)。截至 **2026-11-17**，GitHub 安装包已发布，Chrome 商店已通过 CI/CD 提交，状态为 **等待审核（Pending review）**；0.1.3 的商店上架仍需等待审核通过。[查看发布流水线](https://github.com/ider-zh/saywell/actions/runs/44020821626)。
 
 ## 安装并开始使用
 
