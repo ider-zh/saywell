@@ -1,6 +1,7 @@
 // Explicit synthetic inference probe. Reads the Wrangler login without printing credentials.
 import {readFile} from 'node:fs/promises';import path from 'node:path';import {ProxyAgent} from 'undici';
-import {HOSTED_AI_MODEL} from '../src/core/hosted-ai.js';import {modelInput} from '../cloudflare/src/model-input.js';
+const HOSTED_AI_MODEL=process.env.FREE_AI_MODEL || '@cf/zai-org/glm-4.7-flash';
+import {modelInput} from '../cloudflare/src/model-input.js';
 const account=process.argv[2];if(!/^[a-f0-9]{32}$/.test(account || ''))throw new Error('Pass the Cloudflare account ID.');
 const config=await readFile(path.join(process.env.APPDATA,'xdg.config','.wrangler','config','default.toml'),'utf8'),token=/^oauth_token\s*=\s*"([^"]+)"/m.exec(config)?.[1];
 if(!token)throw new Error('Run npx wrangler login first.');

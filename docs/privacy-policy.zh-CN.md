@@ -1,6 +1,6 @@
 # Saywell 隐私政策
 
-更新日期：2026 年 10 月 22 日
+更新日期：2026 年 11 月 23 日
 
 Saywell 是网页输入框中的中英翻译、润色和语言练习助手。维护者为 GitHub 用户 ider-zh。项目和支持入口：[Saywell GitHub](https://github.com/ider-zh/saywell)、[问题反馈](https://github.com/ider-zh/saywell/issues)。请勿在公开反馈中粘贴原文、密钥或其他敏感信息。
 
@@ -12,7 +12,7 @@ Saywell 是网页输入框中的中英翻译、润色和语言练习助手。维
 
 ## 远程处理和接收方
 
-一步授权默认连接 Saywell 免费 AI，由开发者维护的 https://saywell.9992099.xyz 上的 Cloudflare Worker 转交 Cloudflare Workers AI，使用 Qwen3 30B A3B FP8 处理文本。发送内容包括当前草稿、目标语言、任务、风格、难度及输出限制。扩展不会向该服务发送你的 API Key、完整网页 URL、历史记录或词汇列表。Cloudflare 会接触请求来源 IP 和必要的网络元数据；Worker 临时使用 IP 的 SHA-256 摘要进行限流，不把 IP 或文本写入应用日志。安全错误日志仅包含随机请求 ID 和错误码。当前 Worker 关闭观测日志，不配置文本数据库或内容缓存。
+一步授权默认连接 Saywell 免费 AI，由开发者维护的 https://saywell.9992099.xyz 上的 Cloudflare Worker 转交 Cloudflare Workers AI，使用 free-model 服务处理文本。启用免费 AI 即授权使用主服务和备用服务。主模型故障时 Worker 可将任务和文本转发至 new-api.9992099.xyz 及其上游 AI 服务商。发送内容包括当前草稿、目标语言、任务、风格、难度及输出限制。扩展不会向该服务发送你的 API Key、完整网页 URL、历史记录或词汇列表。Cloudflare 会接触请求来源 IP 和必要的网络元数据；Worker 临时使用 IP 的 SHA-256 摘要进行限流，不把 IP 或文本写入应用日志。安全错误日志仅包含随机请求 ID 和错误码。当前 Worker 关闭观测日志，不配置文本数据库或内容缓存。
 
 Cloudflare 的[Workers AI 数据政策](https://developers.cloudflare.com/workers-ai/platform/data-usage/)规定标准推理请求的内容保留与非训练承诺，并说明运营元数据和法律、安全例外。我们不将草稿出售、用于广告、训练模型或与功能无关的分析，也不提供人工审阅草稿的运营功能。服务商处理仍受其条款约束；这些承诺不意味着所有自选服务都零保留。
 

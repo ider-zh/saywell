@@ -17,6 +17,14 @@ test('plain paragraph and Draft.js wrappers allow native replacement; formatted/
   for(const markup of ['<p><a href="/">Link</a></p>','<p><img src="test"></p>','<p><span contenteditable="false">Mention</span></p>','<span data-text="true" style="font-weight:bold">Bold</span>']){root.innerHTML=markup;assert.equal(canApply(root),false);}
   root.remove();
 });
+test('X Draft text decorators for URLs, hashtags and emoji remain eligible without allowing rich entities',()=>{
+  const root=document.createElement('div');root.setAttribute('contenteditable','true');root.className='notranslate public-DraftEditor-content';document.body.append(root);
+  const decorated='<div data-contents="true"><div data-block="true" data-editor="fixture" data-offset-key="a"><div class="public-DraftStyleDefault-block public-DraftStyleDefault-ltr" data-offset-key="a"><span data-offset-key="a-0-0"><span data-text="true">Read </span></span><span style="color:rgb(29,155,240)"><span data-offset-key="a-1-0"><span data-text="true">https://example.com</span></span></span><span style="color:rgb(29,155,240)"><span data-offset-key="a-2-0"><span data-text="true"> #Saywell </span></span></span><span style="background-image:url(&quot;https://abs.twimg.com/emoji/v2/svg/1f642.svg&quot;);background-size:1em 1em;padding:0.15em;background-position:center center;background-repeat:no-repeat;-webkit-text-fill-color:transparent"><span style="clip-path:circle(0% at center center)"><span data-offset-key="a-3-0"><span data-text="true">🙂</span></span></span></span></div></div></div>';
+  root.innerHTML=decorated;assert.equal(canApply(root),true);const before=root.innerHTML;assert.equal(applyEditor(root,readEditor(root),'My own practice.'),false);assert.equal(root.innerHTML,before,'no destructive DOM fallback when native editing is unavailable');
+  for(const extra of ['<span contenteditable="false">@mention</span>','<img src="https://example.com/test.png">','<span style="font-weight:bold"><span data-text="true">Bold</span></span>','<span style="background-image:url(https://example.com/custom.png)"><span data-text="true">Image</span></span>','<span data-entity-key="mention"><span data-text="true">Mention</span></span>']){root.innerHTML=decorated+extra;assert.equal(canApply(root),false,extra);}
+  root.remove();
+});
+
 test('sensitive fields and rich editors are excluded from unsafe replacement',()=>{
   assert.equal(editorFor(document.querySelector('#password')),null);assert.equal(editorFor(document.querySelector('input[type=password]')),null);
   assert.equal(canApply(document.querySelector('.ProseMirror')),false);assert.equal(canApply(document.querySelector('#plain')),true);

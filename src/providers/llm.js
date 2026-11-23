@@ -1,3 +1,4 @@
+import {HOSTED_AI_ENDPOINT} from '../core/hosted-ai.js';
 import { apiURL, cleanResult } from '../core/security.js';
 import {llmProviderName} from '../core/llm-providers.js';
 import { ProviderError, fetchJSON, jsonPost, readResponseText } from './http.js';
@@ -52,6 +53,7 @@ async function processProtectedLLM(text, config, request, fetcher) {
   if (!config.endpoint || !config.model) throw new ProviderError('config','Set an LLM endpoint and model in Settings.');
   if(config.provider==='saywell'){
     const opts=jsonPost({text,action:request.action,style:request.style,targetLanguage:request.targetLanguage || 'en',difficulty:request.difficulty,maxWords:request.maxWords,maxTokens:Math.min(800,config.maxTokens),thinking:config.thinking});opts.headers['X-Saywell-Client']='1';
+    if(config.consent===true && config.fallbackConsent===true && config.endpoint.replace(/\/+$/,'')===HOSTED_AI_ENDPOINT)opts.headers['X-Saywell-Fallback']='1';
     const wrapped=async(url,options)=>{
       const response=await fetcher(url,options);if(response.ok)return response;
       let data;try{data=JSON.parse(await readResponseText(response,20000,options.signal));}catch(error){if(options.signal.aborted)throw error;}

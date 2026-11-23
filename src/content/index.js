@@ -50,7 +50,7 @@ if (!globalThis.__inputCoach) {
       try{ok=await applyEditor(editor,result.source,result.text,valid);}catch{ok=false;}finally{snapshots.set(editor,readEditor(editor));applying=false;}
       // React/editor state may reject a DOM mutation on its next render.
       await new Promise(requestAnimationFrame);
-      if(ok && editor.isConnected && readEditor(editor)===result.text){count({ai:countChars(result.text),accepted:1});invalidate();}
+      if(ok && editor.isConnected && readEditor(editor)===result.text){if(!result.fromPractice)count({ai:countChars(result.text),accepted:1});invalidate();}
       else tip.status('This editor did not accept the replacement. Use Copy instead.');
     }
   });

@@ -1,6 +1,7 @@
 import {parseLLM} from '../../src/providers/llm.js';
 import {HOSTED_AI_MODEL} from '../../src/core/hosted-ai.js';
-import {modelInput} from './model-input.js';
+import {readResponseText,jsonPost} from '../../src/providers/http.js';
+import {modelInput,taskMessages} from './model-input.js';
 
 class ServiceError extends Error{constructor(status,code,retry=0){super(code);this.status=status;this.code=code;this.retry=retry;}}
 const MAX_BODY=32768;
@@ -10,7 +11,7 @@ let quotaUntil=0;
 const plain=value=>Boolean(value && typeof value==='object' && !Array.isArray(value));
 const extensionOrigin=origin=>/^chrome-extension:\/\/[a-p]{32}$/.test(origin || '');
 function configuration(env){
-  if(!['true','false'].includes(env.PREVIEW_ENABLED) || typeof env.ALLOWED_ORIGINS!=='string' || typeof env.PREVIEW_UNTIL!=='string')throw new ServiceError(503,'configuration_unavailable');
+  if(!env.FREE_AI_MODEL || !['true','false'].includes(env.PREVIEW_ENABLED) || typeof env.ALLOWED_ORIGINS!=='string' || typeof env.PREVIEW_UNTIL!=='string')throw new ServiceError(503,'configuration_unavailable');
   if(env.PREVIEW_UNTIL && !Number.isFinite(Date.parse(env.PREVIEW_UNTIL)))throw new ServiceError(503,'configuration_unavailable');
   return {enabled:env.PREVIEW_ENABLED==='true' && (!env.PREVIEW_UNTIL || Date.now()<Date.parse(env.PREVIEW_UNTIL)),origins:env.ALLOWED_ORIGINS.split(',').map(s=>s.trim()).filter(Boolean)};
 }
@@ -32,22 +33,61 @@ async function readInput(request){
   for(const[key,allowed]of Object.entries(enums))if(!allowed.includes(value[key]))throw new ServiceError(400,'invalid_request');
   return value;
 }
-async function infer(env,input){
+function validatedResult(result,input){
+  const raw=result?.choices?.[0]?.message?.content || result?.response;
+  try{return {result:parseLLM(raw,input.text,input,[]),model:HOSTED_AI_MODEL,usage:{total_tokens:Math.max(0,Number(result?.usage?.total_tokens)||0)}};}
+  catch{throw new ServiceError(502,'invalid_model_response');}
+}
+
+async function primaryInference(env,input,timeoutMs){
   if(!env.AI?.run || !env.CLIENT_LIMIT?.limit || !env.SERVICE_LIMIT?.limit)throw new ServiceError(503,'configuration_unavailable');
   if(quotaUntil>Date.now())throw new ServiceError(429,'daily_quota_exhausted',resetSeconds());
-  let result;
+  let result,timer;
   try{
-    result=await env.AI.run(HOSTED_AI_MODEL,modelInput(input,HOSTED_AI_MODEL));
+    const deadline=new Promise((_,reject)=>{
+      timer=setTimeout(()=>reject(new Error('Inference deadline exceeded')),timeoutMs);
+    });
+    result=await Promise.race([env.AI.run(env.FREE_AI_MODEL,modelInput(input,env.FREE_AI_MODEL)),deadline]);
   }catch(error){
     // Inspect only for classification; never log/return raw provider errors or the draft.
     const code=Number(error?.code || error?.cause?.code),message=String(error?.message || '');
     if(code===3036 || /\b3036\b|daily free allocation|daily.*neurons/i.test(message)){quotaUntil=nextReset();throw new ServiceError(429,'daily_quota_exhausted',resetSeconds());}
     if(code===3040 || /\b3040\b|capacity|rate limit/i.test(message))throw new ServiceError(429,'temporarily_busy',60);
     throw new ServiceError(503,'inference_unavailable');
+  }finally{clearTimeout(timer);}
+  return validatedResult(result,input);
+}
+
+async function infer(env,input,allowFallback){
+  try{
+    return await primaryInference(env,input,allowFallback && env.FALLBACK_API_KEY ? 5500 : 16000);
+  }catch(primaryError){
+    if(!allowFallback || !env.FALLBACK_API_KEY || !env.FALLBACK_MODEL ||
+      !['daily_quota_exhausted','temporarily_busy','inference_unavailable','invalid_model_response'].includes(primaryError.code))throw primaryError;
+    const options=jsonPost({
+      model:env.FALLBACK_MODEL,
+      messages:taskMessages(input),
+      max_completion_tokens:input.maxTokens,
+      response_format:{type:'json_object'},
+      stream:false
+    });
+    options.headers.Authorization='Bearer '+env.FALLBACK_API_KEY;
+    options.headers['User-Agent']='Saywell-Worker/0.1.4';
+    const signal=AbortSignal.timeout(12000);
+    let response;
+    try{
+      const upstream=await fetch('https://new-api.9992099.xyz/v1/chat/completions',{...options,signal,redirect:'manual'});
+      if(!upstream.ok){
+        await upstream.body?.cancel();
+        throw new ServiceError(503,'fallback_http_'+upstream.status);
+      }
+      response=JSON.parse(await readResponseText(upstream,100000,signal));
+    }catch(error){
+      if(error instanceof ServiceError)throw error;
+      throw new ServiceError(503,signal.aborted?'fallback_timeout':'fallback_unavailable');
+    }
+    return validatedResult(response,input);
   }
-  const raw=result?.choices?.[0]?.message?.content || result?.response;
-  try{return {result:parseLLM(raw,input.text,input,[]),model:HOSTED_AI_MODEL,usage:{total_tokens:Math.max(0,Number(result?.usage?.total_tokens)||0)}};}
-  catch{throw new ServiceError(502,'invalid_model_response');}
 }
 export default {
   async fetch(request,env){
@@ -58,7 +98,7 @@ export default {
       // CORS is not authentication. This is a public, bounded, prerelease service.
       if(origin && !config.origins.includes(origin) && !extensionOrigin(origin))throw new ServiceError(403,'origin_not_allowed');
       if(url.search)throw new ServiceError(400,'invalid_request');
-      if(request.method==='OPTIONS')return new Response(null,{status:204,headers:{...headers(request,config,id),'Access-Control-Allow-Methods':'POST, GET, OPTIONS','Access-Control-Allow-Headers':'Content-Type, X-Saywell-Client','Access-Control-Max-Age':'600'}});
+      if(request.method==='OPTIONS')return new Response(null,{status:204,headers:{...headers(request,config,id),'Access-Control-Allow-Methods':'POST, GET, OPTIONS','Access-Control-Allow-Headers':'Content-Type, X-Saywell-Client, X-Saywell-Fallback','Access-Control-Max-Age':'600'}});
       if(request.method==='GET' && ['/health','/ready','/v1/status'].includes(url.pathname)){
         const ready=Boolean(env.AI?.run && env.CLIENT_LIMIT?.limit && env.SERVICE_LIMIT?.limit);
         return respond({service:'saywell-preview-ai',enabled:config.enabled,ready,model:HOSTED_AI_MODEL,quota:quotaUntil>Date.now()?'exhausted':'unknown',resetAt:new Date(nextReset()).toISOString()},url.pathname==='/ready' && !ready?503:200);
@@ -72,7 +112,7 @@ export default {
       const ip=request.headers.get('CF-Connecting-IP') || 'local';
       const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(ip)),key=Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('');
       if(!(await env.CLIENT_LIMIT.limit({key})).success || !(await env.SERVICE_LIMIT.limit({key:'preview'})).success)throw new ServiceError(429,'temporarily_busy',60);
-      const input=await readInput(request);return respond(await infer(env,input));
+      const input=await readInput(request);return respond(await infer(env,input,request.headers.get('X-Saywell-Fallback')==='1'));
     }catch(error){
       const failure=error instanceof ServiceError?error:new ServiceError(503,'service_unavailable');
       console.warn(JSON.stringify({event:'request_failed',requestId:id,code:failure.code}));

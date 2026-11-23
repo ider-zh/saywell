@@ -195,10 +195,11 @@ async function connectProvider(id){
   if(!allowed)throw new Error('Endpoint permission was not granted.');
   if(editingId!==profileId || pendingImport)throw new Error('Configuration changed. Connect the selected service again.');
   collect();if(cfg.endpoint!==endpoint || cfg.provider!==provider)throw new Error('Configuration changed. Connect the selected service again.');
-  const previous={consent:cfg.consent,enabled:cfg.enabled};cfg.consent=true;
+  const previous={consent:cfg.consent,enabled:cfg.enabled,fallbackConsent:cfg.fallbackConsent};cfg.consent=true;
+  if(id==='llm')cfg.fallbackConsent=provider==='saywell' && endpoint===HOSTED_AI_ENDPOINT;
   if(id==='llm')putValue('llm-enabled',true);
   try{await save();}
-  catch(error){cfg.consent=previous.consent;if(id==='llm'){cfg.enabled=previous.enabled;putValue('llm-enabled',previous.enabled);}renderConsent();throw error;}
+  catch(error){cfg.consent=previous.consent;if(id==='llm'){cfg.fallbackConsent=previous.fallbackConsent;cfg.enabled=previous.enabled;putValue('llm-enabled',previous.enabled);}renderConsent();throw error;}
   return profileId;
 }
 document.querySelectorAll('[data-revoke]').forEach(b=>b.addEventListener('click',task(async()=>{

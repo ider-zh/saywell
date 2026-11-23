@@ -28,6 +28,16 @@ function plainSlate(element){
         a.name==='style' && Array.from(child.style).every(name=>name==='position' || /^padding(?:-(?:top|right|bottom|left))?$/.test(name)));
   });
 }
+function draftDecorationStyle(style){
+  const values={'background-size':['1em 1em'],padding:['0.15em'],'background-position':['center center','50% 50%'],'background-repeat':['no-repeat'],'-webkit-text-fill-color':['transparent'],'clip-path':['circle(0% at center center)','circle(0% at 50% 50%)']};
+  return Array.from(style).every(name=>name==='color' || name==='background-image' && /^url\(["']?https:\/\/abs\.twimg\.com\/emoji\/v2\/svg\/[a-f0-9-]+\.svg["']?\)$/i.test(style.getPropertyValue(name)) || /^padding-(top|right|bottom|left)$/.test(name) && style.getPropertyValue(name)==='0.15em' || /^background-position-[xy]$/.test(name) && ['center','50%'].includes(style.getPropertyValue(name)) || values[name]?.includes(style.getPropertyValue(name)));
+}
+function plainDraft(element){
+  return [...element.querySelectorAll('*')].every(child=>
+    (['P','DIV','BR'].includes(child.tagName) || child.tagName==='SPAN' && (child.hasAttribute('data-text') || child.hasAttribute('data-offset-key') || child.querySelector('span[data-text]'))) &&
+    !child.hasAttribute('contenteditable') &&
+    [...child.attributes].every(a=>['class','dir','data-contents','data-block','data-editor','data-offset-key','data-text'].includes(a.name) || child.tagName==='SPAN' && a.name==='style' && draftDecorationStyle(child.style)));
+}
 export function canApply(element) {
   if (!element.isConnected || element.disabled || element.readOnly) return false;
   if (element.matches('input,textarea')) return true;
@@ -36,10 +46,13 @@ export function canApply(element) {
   // Simple paragraphs and line breaks are still plain text, including common ProseMirror composers.
   // Marks, links, widgets and nested editors retain Copy fallback.
   const draft=element.matches('.public-DraftEditor-content') || Boolean(element.closest('.DraftEditor-root'));
+  // X decorates text with colored URL/hashtag spans and text-backed emoji images.
+  // Let native editing update the Draft model; entities and rich formatting stay excluded.
+  if(draft)return plainDraft(element);
   return [...element.querySelectorAll('*')].every(child=>
-    (['P','DIV','BR'].includes(child.tagName) || draft && child.tagName==='SPAN' && (child.hasAttribute('data-text') || child.hasAttribute('data-offset-key'))) &&
+    ['P','DIV','BR'].includes(child.tagName) &&
     !child.hasAttribute('contenteditable') &&
-    ![...child.attributes].some(a=>!['class','dir',...(draft?['data-contents','data-block','data-editor','data-offset-key','data-text']:[])].includes(a.name)));
+    ![...child.attributes].some(a=>!['class','dir'].includes(a.name)));
 }
 export function applyEditor(element,source,text,valid=()=>true) {
   if (!valid() || !canApply(element) || readEditor(element)!==source) return false;

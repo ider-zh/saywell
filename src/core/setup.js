@@ -10,7 +10,7 @@ export function enableFreeSetup(raw){
     if(s.llmProfiles.length>=20)throw new Error('Remove an LLM configuration before enabling free AI.');
     profile={...mergeSettings().llm,id:crypto.randomUUID(),name:'Saywell Free AI'};s.llmProfiles.push(profile);
   }
-  Object.assign(profile,{enabled:true,consent:true,thinking:false,model:LLM_PROVIDERS.saywell.model});
+  Object.assign(profile,{enabled:true,consent:true,fallbackConsent:true,thinking:false,model:LLM_PROVIDERS.saywell.model});
   s.activeLlmId=profile.id;s.llm=llmConfig(profile);
   const defaults=mergeSettings();for(const id of FREE_ENGINES)s.basic[id]={...s.basic[id],endpoint:defaults.basic[id].endpoint,consent:true};
   return {...s,enabled:true,autoSuggest:true,basicEngine:'auto',basicFallback:true,maxWords:3,siteOrigins:[...SETUP_ORIGINS],siteMode:'blacklist'};

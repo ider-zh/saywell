@@ -6,7 +6,7 @@ import {endpointURL} from './security.js';
 
 export const CONFIG_FILE_LIMIT=1024*1024;
 const settingKeys=[...Object.keys(DEFAULTS).filter(key=>key!=='llm'),'llmProfiles','activeLlmId'];
-const profileKeys=['id','name',...Object.keys(DEFAULTS.llm).filter(key=>!['consent','rememberKey'].includes(key))];
+const profileKeys=['id','name',...Object.keys(DEFAULTS.llm).filter(key=>!['consent','rememberKey','fallbackConsent'].includes(key))];
 const basicKeys=id=>Object.keys(DEFAULTS.basic[id]).filter(key=>!['consent','rememberKey'].includes(key));
 const plain=value=>Boolean(value && typeof value==='object' && !Array.isArray(value));
 const pick=(value,keys)=>Object.fromEntries(keys.filter(key=>Object.hasOwn(value,key)).map(key=>[key,value[key]]));

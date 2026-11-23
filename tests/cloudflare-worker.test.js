@@ -3,7 +3,8 @@ import worker from '../cloudflare/src/worker.js';
 import {HOSTED_AI_MODEL} from '../src/core/hosted-ai.js';
 import {modelInput} from '../cloudflare/src/model-input.js';
 const input=()=>({text:'你好，世界。',action:'translate',style:'natural',targetLanguage:'en',difficulty:'intermediate',maxWords:0,maxTokens:200,thinking:false});
-const env=()=>({PREVIEW_ENABLED:'true',PREVIEW_UNTIL:'',ALLOWED_ORIGINS:'chrome-extension://test',AI:{run:async()=>({choices:[{message:{content:'{"text":"Hello, world.","vocabulary":[]}'}}],usage:{total_tokens:42}})},CLIENT_LIMIT:{limit:async()=>({success:true})},SERVICE_LIMIT:{limit:async()=>({success:true})}});
+const primary='@cf/zai-org/glm-4.7-flash';
+const env=()=>({FREE_AI_MODEL:primary,PREVIEW_ENABLED:'true',PREVIEW_UNTIL:'',ALLOWED_ORIGINS:'chrome-extension://test',AI:{run:async()=>({choices:[{message:{content:'{"text":"Hello, world.","vocabulary":[]}'}}],usage:{total_tokens:42}})},CLIENT_LIMIT:{limit:async()=>({success:true})},SERVICE_LIMIT:{limit:async()=>({success:true})}});
 const req=(body=input(),headers={})=>new Request('https://worker.test/v1/coach',{method:'POST',headers:{'Content-Type':'application/json','X-Saywell-Client':'1',...headers},body:JSON.stringify(body)});
 
 test('Worker health is inference-free, validates configuration, and rejects unlisted browser origins',async()=>{
@@ -19,13 +20,13 @@ test('Worker health is inference-free, validates configuration, and rejects unli
 
 test('Worker fixes model and system instructions, caps output, disables thinking and returns only validated suggestion text',async()=>{
   const e=env();let sent;e.AI.run=async(model,options)=>{sent={model,options};return {choices:[{message:{content:'{"text":"<img src=x>","vocabulary":[]}',reasoning_content:'private reasoning'}}],usage:{total_tokens:42}};};
-  const response=await worker.fetch(req(),e),data=await response.json();assert.equal(response.status,200);assert.equal(sent.model,HOSTED_AI_MODEL);assert.equal(sent.options.max_tokens,200);assert.equal(sent.options.chat_template_kwargs,undefined);assert.equal(sent.options.response_format,undefined);assert.equal(sent.options.stream,false);assert.equal(sent.options.temperature,0.2);assert.match(sent.options.messages[0].content,/Saywell/);assert.match(sent.options.messages[1].content,/\n\/no_think$/);assert.deepEqual(JSON.parse(sent.options.messages[1].content.split('\n')[0]),{action:'translate',targetLanguage:'en',text:'你好，世界。'});
+  const response=await worker.fetch(req(),e),data=await response.json();assert.equal(response.status,200);assert.equal(sent.model,primary);assert.equal(data.model,'free-model');assert.equal(sent.options.max_completion_tokens,200);assert.deepEqual(sent.options.chat_template_kwargs,{enable_thinking:false});assert.equal(sent.options.response_format,undefined);assert.equal(sent.options.stream,false);assert.match(sent.options.messages[0].content,/Saywell/);assert.deepEqual(JSON.parse(sent.options.messages[1].content.split('\n')[0]),{action:'translate',targetLanguage:'en',text:'你好，世界。'});
   assert.equal(data.result.text,'<img src=x>');assert.ok(!JSON.stringify(data).includes('private reasoning'));assert.equal(data.usage.total_tokens,42);
 });
 
 test('sponsored model input keeps the tested native template protocol, explicit thinking toggle and Chinese Explain contract',()=>{
-  assert.match(modelInput({...input(),thinking:true},HOSTED_AI_MODEL).messages[1].content,/\n\/think$/);
-  assert.match(modelInput({...input(),action:'explain'},HOSTED_AI_MODEL).messages[0].content,/explanation MUST be nonempty/);
+  assert.match(modelInput({...input(),thinking:true},'@cf/qwen/qwen3-30b-a3b-fp8').messages[1].content,/\n\/think$/);
+  assert.match(modelInput({...input(),action:'explain'},'@cf/qwen/qwen3-30b-a3b-fp8').messages[0].content,/explanation MUST be nonempty/);
   assert.throws(()=>modelInput(input(),'arbitrary-model'));
 });
 
@@ -43,6 +44,49 @@ test('Worker throttles before inference and sanitizes upstream failures without 
   }
   const invalid=env();invalid.AI.run=async()=>({choices:[{message:{content:'not json'}}]});assert.equal((await worker.fetch(req(),invalid)).status,502);
   const reasoningOnly=env();reasoningOnly.AI.run=async()=>({choices:[{message:{content:'',reasoning_content:'{"text":"must not be promoted from reasoning"}'}}]});const rejected=await worker.fetch(req(),reasoningOnly);assert.equal(rejected.status,502);assert.ok(!(await rejected.text()).includes('must not be promoted'));
+});
+
+test('fallback needs per-request consent, a secret, and a primary failure after rate limiting',async t=>{
+  const e={...env(),FALLBACK_API_KEY:'test-only',FALLBACK_MODEL:'gpt-6.1-terra'};
+  const consent={'X-Saywell-Fallback':'1'};
+  const outbound=t.mock.method(globalThis,'fetch',async(url,options)=>{
+    assert.equal(url,'https://new-api.9992099.xyz/v1/chat/completions');
+    assert.equal(options.redirect,'manual');
+    assert.equal(options.headers.Authorization,'Bearer test-only');
+    const body=JSON.parse(options.body);
+    assert.equal(body.model,e.FALLBACK_MODEL);
+    assert.equal(body.max_completion_tokens,input().maxTokens);
+    assert.equal(JSON.parse(body.messages[1].content).text,input().text);
+    return Response.json({choices:[{message:{content:'{"text":"Hello!"}'}}]});
+  });
+  assert.equal((await worker.fetch(req(input(),consent),e)).status,200);
+  e.AI.run=async()=>{throw Error('upstream unavailable');};
+  assert.equal((await worker.fetch(req(),e)).status,503);
+  assert.equal((await worker.fetch(req(input(),consent),{...e,FALLBACK_API_KEY:''})).status,503);
+  const limited={...e,CLIENT_LIMIT:{limit:async()=>({success:false})}};
+  assert.equal((await worker.fetch(req(input(),consent),limited)).status,429);
+  assert.equal(outbound.mock.callCount(),0);
+  const response=await worker.fetch(req(input(),consent),e);
+  assert.equal(response.status,200);
+  const data=await response.json();
+  assert.equal(data.model,'free-model');
+  assert.equal(data.result.text,'Hello!');
+  assert.equal(outbound.mock.callCount(),1);
+  outbound.mock.mockImplementation(async()=>new Response('private upstream text',{status:401}));
+  const error=await worker.fetch(req(input(),consent),e);
+  assert.equal(error.status,503);
+  assert.ok(!(await error.text()).includes('private'));
+  assert.equal(outbound.mock.callCount(),2);
+});
+
+test('a stalled primary yields time to the managed fallback',async t=>{
+  const e={...env(),FALLBACK_API_KEY:'test-only',FALLBACK_MODEL:'gpt-6.1-terra'};
+  e.AI.run=()=>new Promise(()=>{});
+  t.mock.method(globalThis,'fetch',async()=>Response.json({choices:[{message:{content:'{"text":"Recovered."}'}}]}));
+  const start=Date.now();
+  const response=await worker.fetch(req(input(),{'X-Saywell-Fallback':'1'}),e);
+  assert.equal((await response.json()).result.text,'Recovered.');
+  assert.ok(Date.now()-start<12000);
 });
 
 test('Worker maps Cloudflare 3036 to a daily quota alert and avoids another inference until UTC reset',async()=>{

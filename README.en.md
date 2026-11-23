@@ -10,6 +10,8 @@ Unsure how to phrase an English message? Write your thought in Chinese, or draft
 
 For Chrome and Edge. **Now publicly available on the Chrome Web Store.** [Install Saywell from the Chrome Web Store](https://chromewebstore.google.com/detail/saywell/ofofhnaikohfnbgbckghgccobafkfeig), or use the GitHub package below for manual installation.
 
+The included AI uses the alias `free-model`. By default, new Saywell configurations allow new-api.9992099.xyz and its upstream AI provider to process the request if the primary model fails.
+
 ## What changes in 0.1.3
 
 - **Focus on your writing:** Websites, emails, common paths and IDs fold into small tags. Expand a tag to view or copy the original.
@@ -54,7 +56,7 @@ In mixed sentences, addresses, paths and clear identifiers become temporary plac
 
 ## Make the expression your own
 
-Choose **Practice this sentence** under a result and retype inside the tooltip. Character differences are highlighted; case and punctuation differences use a lighter style. Practice does not change the website draft, upload your attempt or save it.
+Choose **Practice this sentence** under a result and retype inside the tooltip. Character differences are highlighted; case and punctuation differences use a lighter style. Choose **Apply** beside **Start again** to replace the website draft with your own attempt, even when it differs from the suggestion. Practice leaves the draft unchanged until you apply and does not upload or save your attempt. Plain text, URLs, hashtags and emoji in the x.com post composer support direct application. Complex rich editors do not.
 
 Expand vocabulary tips to see meanings and examples or add a word to your collection. Saving the original sentence context requires a separate explicit choice.
 

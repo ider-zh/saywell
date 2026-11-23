@@ -5,10 +5,14 @@ Deployed with explicit owner authorization on **2026-10-20** to the owner's exis
 - Service: https://saywell.9992099.xyz
 - Extension API base: `https://saywell.9992099.xyz/v1`
 - Legacy service remains available at `https://saywell-preview-ai.ider001.workers.dev` for previously saved profiles.
-- Model: `@cf/qwen/qwen3-30b-a3b-fp8`, fixed on the server.
+- Public model alias: `free-model`. Deployed to production on 2026-11-23 (version `1732baec-ccb4-476c-a558-ef9058fd37f7`, 100% allocation).
+- Worker variable `FREE_AI_MODEL` selects the primary adapter, initially `@cf/zai-org/glm-4.7-flash`. `FALLBACK_MODEL` selects `gpt-6.1-terra` at the fixed HTTPS New API endpoint.
+- Install the fallback credential as the Worker secret `FALLBACK_API_KEY` via the Cloudflare dashboard or interactive Wrangler secret input. Without the binding only primary inference runs. Old clients use primary inference only. On new clients, enabling the free service after the disclosure allows one retry for failed inference, malformed output, upstream capacity, or exhausted primary quota. Local throttles and invalid requests are final.
 - Health: `/health`; readiness: `/ready`; safe status: `/v1/status`.
 - `POST /v1/coach`: translation/polishing/explanation only, not a general chat/model proxy.
 - Cloudflare credentials stay in the operator's Wrangler login; the deployed Worker uses an AI binding. No credential ships in the extension.
+
+Production verification on 2026-11-23: the fallback credential is a Worker secret. Synthetic translation through the public coach endpoint returned HTTP 200 and "Please send the report by Friday." in 9.8 seconds. Primary-only GLM requests exceeded the primary deadline during this check. Requests authorized for both services wait up to 5.5 seconds for primary inference, then allow up to 12 seconds for the fallback. Legacy primary-only requests have a 16-second deadline. Fallback uses manual redirect handling and rejects all non-success statuses before reading the body.
 
 ## Model update — 2026-10-21
 

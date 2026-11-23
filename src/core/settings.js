@@ -21,14 +21,14 @@ export const DEFAULTS = Object.freeze({
     azure: { consent:false, endpoint:'https://api.cognitive.microsofttranslator.com', region:'', rememberKey:false }
   },
   llm: { enabled: false, provider: 'compatible', endpoint: '', model: '', consent: false,
-    thinking:false,thinkingProtocol:'auto',temperature: null, maxTokens: 800, timeout: 20000, dailyRequests: 0, rememberKey: false }
+    fallbackConsent:false,thinking:false,thinkingProtocol:'auto',temperature: null, maxTokens: 800, timeout: 20000, dailyRequests: 0, rememberKey: false }
 });
 
 export const isBuiltinLlmProfile=profile=>profile?.provider==='saywell' && isBuiltinHostedEndpoint(profile.endpoint);
-export const builtinLlmProfile=(id='default')=>({...DEFAULTS.llm,enabled:true,provider:'saywell',endpoint:HOSTED_AI_ENDPOINT,model:HOSTED_AI_MODEL,id,name:'Default configuration'});
+export const builtinLlmProfile=(id='default')=>({...DEFAULTS.llm,enabled:true,fallbackConsent:true,provider:'saywell',endpoint:HOSTED_AI_ENDPOINT,model:HOSTED_AI_MODEL,id,name:'Default configuration'});
 
 export function mergeSettings(raw = {}) {
-  const llm={...DEFAULTS.llm,...(!raw.llm && !raw.llmProfiles?{enabled:true,provider:'saywell',endpoint:LLM_PROVIDERS.saywell.endpoint,model:LLM_PROVIDERS.saywell.model}:{}),...raw.llm};
+  const llm={...DEFAULTS.llm,...(!raw.llm && !raw.llmProfiles?{enabled:true,fallbackConsent:true,provider:'saywell',endpoint:LLM_PROVIDERS.saywell.endpoint,model:LLM_PROVIDERS.saywell.model}:{}),...raw.llm};
   const profiles=Array.isArray(raw.llmProfiles) && raw.llmProfiles.length
     ? raw.llmProfiles.map(p=>({...DEFAULTS.llm,...p}))
     : [{...llm,id:'default',name:'Default configuration'}];
@@ -84,7 +84,7 @@ export function validateSettings(s) {
 
 function validateLLM(c){
   if (!Object.hasOwn(LLM_PROVIDERS,c.provider)) throw new Error('Invalid LLM provider.');
-  if(typeof c.endpoint!=='string' || c.endpoint.length>500 || typeof c.model!=='string' || c.model.length>200 || ['enabled','consent','rememberKey','thinking'].some(k=>typeof c[k]!=='boolean'))throw new Error('Invalid LLM configuration.');
+  if(typeof c.endpoint!=='string' || c.endpoint.length>500 || typeof c.model!=='string' || c.model.length>200 || ['enabled','consent','rememberKey','thinking','fallbackConsent'].some(k=>typeof c[k]!=='boolean'))throw new Error('Invalid LLM configuration.');
   if(!['auto','thinking','enable_thinking','reasoning_effort','think','chat_template'].includes(c.thinkingProtocol))throw new Error('Invalid thinking protocol.');
   if (!Number.isInteger(c.timeout) || c.timeout < 3000 || c.timeout > 60000) throw new Error('Timeout must be 3–60 seconds.');
   if (!Number.isInteger(c.maxTokens) || c.maxTokens < 100 || c.maxTokens > 8000) throw new Error('Response token limit must be 100–8000.');

@@ -1,6 +1,6 @@
 # Saywell Privacy Policy
 
-Updated: October 22, 2026
+Updated: November 23, 2026
 
 Saywell provides Chinese/English translation, polishing and related language practice in website input fields. It is maintained by GitHub user ider-zh. Project and support: [Saywell on GitHub](https://github.com/ider-zh/saywell) and [issues](https://github.com/ider-zh/saywell/issues). Do not include drafts, keys or sensitive information in public reports.
 
@@ -12,7 +12,7 @@ Password fields and fields with common sensitive identifiers are excluded. Confi
 
 ## Remote processing and recipients
 
-One-step setup connects Saywell Free AI, hosted by the developer at https://saywell.9992099.xyz through a Cloudflare Worker and Cloudflare Workers AI running Qwen3 30B A3B FP8. Requests include the current draft, target language, task, style, difficulty and output limits. They do not include your API keys, full website URL, translation history or vocabulary collection. Cloudflare receives the connection IP and necessary network metadata. The Worker temporarily uses a SHA-256 digest of the connecting IP for rate limiting, without writing the IP or text to application logs. Safe error logs contain only random request IDs and error codes. Worker observability is disabled; no content database or content cache is configured.
+One-step setup connects Saywell Free AI, hosted by the developer at https://saywell.9992099.xyz through a Cloudflare Worker and Cloudflare Workers AI using the free-model service. Enabling Saywell Free AI authorizes both services. the Worker may forward the task and text to new-api.9992099.xyz and its upstream AI provider when primary inference fails. Requests include the current draft, target language, task, style, difficulty and output limits. They do not include your API keys, full website URL, translation history or vocabulary collection. Cloudflare receives the connection IP and necessary network metadata. The Worker temporarily uses a SHA-256 digest of the connecting IP for rate limiting, without writing the IP or text to application logs. Safe error logs contain only random request IDs and error codes. Worker observability is disabled; no content database or content cache is configured.
 
 Cloudflare's [Workers AI data policy](https://developers.cloudflare.com/workers-ai/platform/data-usage/) describes retention and no-training commitments for standard inference, operational metadata and legal/security exceptions. We do not sell drafts, use them for advertising, train models on them or conduct unrelated analysis, and we provide no operational feature for humans to review drafts. Provider processing remains subject to provider terms. These statements do not promise zero retention for every user-selected service.
 

@@ -1,3 +1,4 @@
+import {enableFreeSetup} from '../src/core/setup.js';
 import test from 'node:test';import assert from 'node:assert/strict';
 import {processLLM} from '../src/providers/llm.js';import {mergeSettings} from '../src/core/settings.js';import {HOSTED_AI_ENDPOINT,HOSTED_AI_MODEL,LEGACY_HOSTED_AI_ENDPOINT} from '../src/core/hosted-ai.js';
 const request={action:'translate',style:'natural',targetLanguage:'en',difficulty:'intermediate',maxWords:0,known:[]};
@@ -14,6 +15,22 @@ test('Saywell adapter sends only the bounded coach schema without a key, prompt,
   let sent;const cfg={...mergeSettings().llm,maxTokens:8000,key:'must-not-send'};
   const result=await processLLM('你好。',cfg,request,async(url,options)=>{sent={url,options};return new Response(JSON.stringify({result:{text:'Hello.',vocabulary:[]},usage:{total_tokens:42}}));});
   const body=JSON.parse(sent.options.body);assert.equal(sent.url,HOSTED_AI_ENDPOINT+'/coach');assert.equal(body.maxTokens,800);assert.equal(body.thinking,false);assert.equal(body.model,undefined);assert.equal(body.messages,undefined);assert.equal(body.known,undefined);assert.equal(sent.options.headers.Authorization,undefined);assert.equal(sent.options.credentials,'omit');assert.equal(result.engine,'Saywell Free AI');assert.equal(result.text,'Hello.');
+});
+
+test('only an opted-in built-in connection sends fallback consent',async()=>{
+  const defaults=mergeSettings().llm;
+  assert.equal(defaults.fallbackConsent,true);
+  const legacy={...defaults,consent:true};
+  delete legacy.fallbackConsent;
+  assert.equal(mergeSettings({llm:legacy}).llm.fallbackConsent,false);
+  assert.equal(enableFreeSetup({llm:legacy}).llm.fallbackConsent,true);
+  assert.equal(mergeSettings({llm:{...defaults,fallbackConsent:false}}).llm.fallbackConsent,false);
+  for(const [config,expected] of [[defaults,undefined],[{...defaults,consent:true},'1'],[{...defaults,consent:true,fallbackConsent:false},undefined],[{...defaults,consent:true,fallbackConsent:true,endpoint:'https://custom.test/v1'},undefined]]){
+    await processLLM('Test.',config,request,async(url,options)=>{
+      assert.equal(options.headers['X-Saywell-Fallback'],expected);
+      return Response.json({result:{text:'Test.'}});
+    });
+  }
 });
 
 test('Saywell quota, busy and prerelease cutoff errors become actionable messages without echoing server content',async()=>{
