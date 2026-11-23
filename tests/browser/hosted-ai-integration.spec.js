@@ -3,7 +3,7 @@ import hostedWorker from '../../cloudflare/src/worker.js';
 
 test('actual MV3 keyless AI uses the Worker contract, preserves host sizing and keeps MT with bilingual daily quota alerts',async()=>{
   let context,exhausted=false,aiCalls=0,coachCalls=0;
-  const env={PREVIEW_ENABLED:'true',PREVIEW_UNTIL:'',ALLOWED_ORIGINS:'',CLIENT_LIMIT:{limit:async()=>({success:true})},SERVICE_LIMIT:{limit:async()=>({success:true})},AI:{run:async()=>{aiCalls++;if(exhausted)throw Object.assign(new Error('3036 daily free allocation'),{code:3036});return {choices:[{message:{content:'{"text":"AI translation.","vocabulary":[]}'}}],usage:{total_tokens:42}};}}};
+  const env={FREE_AI_MODEL:'@cf/zai-org/glm-4.7-flash',PREVIEW_ENABLED:'true',PREVIEW_UNTIL:'',ALLOWED_ORIGINS:'',CLIENT_LIMIT:{limit:async()=>({success:true})},SERVICE_LIMIT:{limit:async()=>({success:true})},AI:{run:async()=>{aiCalls++;if(exhausted)throw Object.assign(new Error('3036 daily free allocation'),{code:3036});return {choices:[{message:{content:'{"text":"AI translation.","vocabulary":[]}'}}],usage:{total_tokens:42}};}}};
   const server=createServer(async(req,res)=>{
     const url=new URL(req.url,'http://localhost');let raw='';for await(const chunk of req)raw+=chunk;
     if(url.pathname==='/v1/coach'){

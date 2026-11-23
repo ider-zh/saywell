@@ -658,7 +658,7 @@ test('configuration download and reviewed import restore saved preferences, site
 test('legacy backup cannot overwrite app-owned AI metadata and new exports contain only its reference',async()=>{
   const p=await context.newPage();await p.goto(`chrome-extension://${extensionId}/settings.html`);const snapshot=await p.evaluate(async()=>({local:await chrome.storage.local.get(null),session:await chrome.storage.session.get(null)}));
   try{
-    const fresh=mergeSettings().llm,{consent,rememberKey,...portable}=fresh;
+    const fresh=mergeSettings().llm,{consent,fallbackConsent,rememberKey,...portable}=fresh;
     const backup=await p.evaluate(async()=>(await chrome.runtime.sendMessage({type:'export-config'})).data);backup.version=1;delete backup.builtinLlmIds;backup.uiLanguage='en';backup.settings.llmProfiles=[{...portable,id:'default',name:'Old built-in',endpoint:LEGACY_HOSTED_AI_ENDPOINT,model:'obsolete-model',enabled:false,maxTokens:100}];backup.settings.activeLlmId='default';backup.settings.siteOrigins=[];backup.sitePreferences={'example.test':{llmProfileId:'default'}};
     await p.locator('#config-file').setInputFiles({name:'old-default.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(backup))});await expect(p.locator('#config-import-profiles')).toContainText('App default');await p.locator('#confirm-config-import').click();
     await expect(p.locator('#llm-endpoint')).toHaveValue(HOSTED_AI_ENDPOINT);await expect(p.locator('#llm-model')).toHaveValue(fresh.model);await expect(p.locator('#llm-enabled')).toBeChecked();await expect(p.locator('#test-llm')).toBeFocused();await expect(p.locator('#llm-reconnect-help')).toBeVisible();
@@ -805,7 +805,7 @@ test('Saywell free AI preset fills endpoint and fixed model, needs no key and ke
   const p=await providerSetupPage();try{
     await p.locator('#llm-provider').selectOption('saywell');await expect(p.locator('#llm-model')).toHaveValue('free-model');await expect(p.locator('#llm-model')).not.toBeEditable();await expect(p.locator('#llm-key')).toBeHidden();await expect(p.locator('#llm-thinking')).not.toBeChecked();await expect(p.locator('#llm-provider-help')).toContainText('08:00');
     expect((await p.evaluate(()=>window.__providerCalls)).filter(c=>c.type!=='save')).toEqual([]);await p.locator('#test-llm').click();await expect(p.getByRole('status')).toHaveText('Connected to Synthetic LLM. Synthetic request completed.');const calls=await p.evaluate(()=>window.__providerCalls);expect(calls.filter(c=>c.type!=='save').map(c=>c.type)).toEqual(['permission','test-llm']);expect(calls.find(c=>c.type==='permission').origins).toEqual([new URL(HOSTED_AI_ENDPOINT).origin+'/*']);
-    await p.locator('#ui-language').selectOption('zh-CN');await expect(p.locator('#llm-provider-help')).toContainText('免费额度');await p.locator('#llm').screenshot({path:'test-results/saywell-free-ai-zh.png',style:'.save-bar,.section-nav{visibility:hidden}'});
+    await p.locator('#ui-language').selectOption('zh-CN');await expect(p.locator('#llm-provider-help')).toContainText('模型由服务端管理');await p.locator('#llm').screenshot({path:'test-results/saywell-free-ai-zh.png',style:'.save-bar,.section-nav{visibility:hidden}'});
   }finally{await p.locator('#ui-language').selectOption('en');await p.close();}
 });
 
