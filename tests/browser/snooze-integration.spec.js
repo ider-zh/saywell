@@ -12,12 +12,12 @@ test('actual MV3 site/all pauses survive reload, stop remote processing and resu
     const a=await context.newPage(),b=await context.newPage();await a.goto(base);await b.goto(other);
     const draft=page=>page.getByRole('textbox',{name:'Draft'}),tip=page=>page.locator('input-coach-tip');
     for(const page of [a,b]){await draft(page).fill('这是合成测试。');await expect(tip(page).locator('.suggestion')).toHaveText('Synthetic translation.');}
-    await tip(a).getByRole('button',{name:'Pause temporarily',exact:true}).click();await tip(a).getByLabel('Pause for',{exact:true}).selectOption('1h');await tip(a).getByRole('button',{name:'Pause',exact:true}).click();await expect(tip(a)).toHaveCount(0);await expect(tip(b)).toBeVisible();
+    await tip(a).getByRole('button',{name:'Pause temporarily',exact:true}).click();await tip(a).getByRole('group',{name:'This website'}).getByRole('button',{name:'1 hour',exact:true}).click();await expect(tip(a)).toHaveCount(0);await expect(tip(b)).toBeVisible();
     const paused=calls;await a.reload();await draft(a).fill('刷新后仍然暂停。');await a.waitForTimeout(1000);expect(calls).toBe(paused);
     await draft(b).fill('另一个网站继续翻译。');await expect(tip(b).locator('.suggestion')).toBeVisible();expect(calls).toBe(paused+1);
     await a.bringToFront();const opened=context.waitForEvent('page');await worker.evaluate(()=>chrome.tabs.create({url:chrome.runtime.getURL('popup.html'),active:false}));const popup=await opened;
     await expect(popup.locator('#resume-snooze-site')).toBeVisible();await popup.locator('#resume-snooze-site').click();await expect(popup.locator('#snooze-status')).toBeHidden();await draft(a).fill('提前恢复当前网站。');await expect(tip(a).locator('.suggestion')).toBeVisible();
-    await tip(a).getByRole('button',{name:'Pause temporarily',exact:true}).click();await tip(a).getByLabel('Pause for',{exact:true}).selectOption('4h');await tip(a).getByLabel('Pause on',{exact:true}).selectOption('all');await tip(a).getByRole('button',{name:'Pause',exact:true}).click();await expect(tip(a)).toHaveCount(0);await expect(tip(b)).toHaveCount(0);
+    await tip(a).getByRole('button',{name:'Pause temporarily',exact:true}).click();await tip(a).getByRole('group',{name:'All websites'}).getByRole('button',{name:'4 hours',exact:true}).click();await expect(tip(a)).toHaveCount(0);await expect(tip(b)).toHaveCount(0);
     await expect(popup.locator('#resume-snooze-all')).toBeVisible();const allPaused=calls;await draft(b).fill('全部暂停时不调用。');await b.waitForTimeout(1100);expect(calls).toBe(allPaused);
     await popup.locator('#resume-snooze-all').click();await expect(popup.locator('#snooze-status')).toBeHidden();
     await worker.evaluate(()=>chrome.storage.local.set({snoozes:{all:Date.now()+400,sites:{}}}));await b.waitForTimeout(750);await draft(b).fill('到期自动恢复翻译。');await expect(tip(b).locator('.suggestion')).toBeVisible();expect(calls).toBe(allPaused+1);

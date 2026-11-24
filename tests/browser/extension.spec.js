@@ -168,8 +168,19 @@ test('X decorated Draft enables practice Apply and preserves the editor model an
 test('mini pause entry keeps late results from replacing choices and sends the selected site/all duration',async()=>{
   const p=await pageWithCoach();await p.evaluate(()=>{window.__coachSetSettings({llmEnabled:true,uiLanguage:'zh-CN'});window.__coachDelays={mt:30,llm:1100};});
   await p.getByRole('textbox',{name:'Draft',exact:true}).fill('这是临时暂停测试。');const tip=p.locator('input-coach-tip');await expect(tip.locator('.suggestion')).toHaveText('Hello, world.');
-  await tip.getByRole('button',{name:'临时暂停',exact:true}).click();await tip.getByLabel('暂停时长',{exact:true}).selectOption('tomorrow');await tip.getByLabel('暂停范围',{exact:true}).selectOption('all');await p.waitForTimeout(1200);
-  await expect(tip.getByLabel('暂停时长',{exact:true})).toHaveValue('tomorrow');await expect(tip.getByLabel('暂停范围',{exact:true})).toHaveValue('all');await tip.screenshot({path:'test-results/snooze-menu-zh.png'});await tip.getByRole('button',{name:'暂停',exact:true}).click();await expect(tip).toHaveCount(0);
+  const clock=tip.getByRole('button',{name:'临时暂停',exact:true});
+  const site=tip.getByRole('group',{name:'当前网站'}),all=tip.getByRole('group',{name:'所有网站'});
+  await clock.click();
+  await expect(site.getByRole('button',{name:'1 小时'})).toBeFocused();
+  await p.keyboard.press('Escape');
+  await expect(clock).toBeFocused();
+  expect(await p.evaluate(()=>window.__coachSnooze)).toBeUndefined();
+  await clock.click();
+  await p.waitForTimeout(1200);
+  for(const group of [site,all])await expect(group.getByRole('button')).toHaveText(['1 小时','4 小时','到明天零点']);
+  await tip.screenshot({path:'test-results/snooze-menu-zh.png'});
+  await all.getByRole('button',{name:'到明天零点'}).click();
+  await expect(tip).toHaveCount(0);
   expect(await p.evaluate(()=>window.__coachSnooze)).toMatchObject({scope:'all',duration:'tomorrow'});await p.getByRole('textbox',{name:'Draft',exact:true}).fill('暂停后不再请求。');await p.waitForTimeout(1100);expect(await p.evaluate(()=>window.__coachRequests.length)).toBe(2);await p.close();
 });
 test('website settings save action, target and providers, survive reload, and reset without changing global defaults',async()=>{

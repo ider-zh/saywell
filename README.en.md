@@ -64,7 +64,7 @@ Expand vocabulary tips to see meanings and examples or add a word to your collec
 
 Choose Small, Medium or Large, or drag the tooltip header. A miniature pin shows that the website position is remembered; select it to return to automatic positioning.
 
-Use the clock entry to pause for **1 hour, 4 hours or until tomorrow**, on this site or everywhere. Website settings also let you block a site or give it its own target language, default action and service configuration.
+Open the clock and choose **1 hour, 4 hours or until tomorrow** under **This website** or **All websites**. The pause starts immediately. To resume early, open the extension popup and select the matching resume button. Website settings also let you block a site or give it its own target language, default action and service configuration.
 
 The interface supports Chinese and English and follows your browser by default. UI language and translation target are independent.
 
